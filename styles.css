@@ -4571,3 +4571,26 @@ details[open] .finances-details-summary::before { content: '−'; }
 @media (max-width: 480px) {
   .dash-finances-items { grid-template-columns: 1fr 1fr; }
 }
+
+.dash-fin-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 16px;
+  overflow: hidden;
+}
+.dash-fin-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.dash-fin-bar-label {
+  font-family: var(--font-nav);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 6px;
+}

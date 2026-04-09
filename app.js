@@ -2459,54 +2459,57 @@
   }
 
   function renderDashboardFinances() {
-    // Uses invoices + COs pre-loaded at login — no extra Firestore call needed
-    var invoices = currentInvoices || [];
-    var cos = currentChangeOrders || [];
-    if (invoices.length === 0 && cos.length === 0) return '';
+    // Budget totals (from pre-loaded firestoreBudgetItems)
+    var hasItems = firestoreBudgetItems && firestoreBudgetItems.length > 0;
+    var budgetLoaded = hasItems && firestoreBudgetItems[0].cost_code !== undefined; // new schema
 
-    var totalInvoiced = 0, totalPaid = 0, totalOutstanding = 0;
-    invoices.forEach(function(inv) {
-      var amt = Number(inv.amount) || 0;
-      totalInvoiced += amt;
-      if (inv.status === 'paid') totalPaid += amt;
-      else if (inv.status !== 'void') totalOutstanding += amt;
+    if (!hasItems) return ''; // nothing to show yet
+
+    var totalBudget = 0, totalSpent = 0;
+    firestoreBudgetItems.forEach(function(item) {
+      // Only sum sub-codes, not category headers
+      if (!item.parent_code) return;
+      totalBudget += budgetAmt(item);
+      totalSpent  += actualAmt(item);
     });
+    var remaining = totalBudget - totalSpent;
+    var pct = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0;
 
-    var approvedCOImpact = 0;
-    cos.forEach(function(co) {
-      if (co.status === 'approved') approvedCOImpact += Number(co.costImpact) || 0;
+    // Outstanding invoices
+    var totalOutstanding = 0;
+    (currentInvoices || []).forEach(function(inv) {
+      if (inv.status !== 'paid' && inv.status !== 'void') totalOutstanding += Number(inv.amount) || 0;
     });
 
     var items = '';
 
-    if (invoices.length > 0) {
-      items += '<div class="dash-fin-item">';
-      items += '<span class="dash-fin-label">Total Invoiced</span>';
-      items += '<span class="dash-fin-value">' + formatCurrency(totalInvoiced) + '</span>';
-      items += '</div>';
+    items += '<div class="dash-fin-item">';
+    items += '<span class="dash-fin-label">Total Budget</span>';
+    items += '<span class="dash-fin-value">' + formatCurrency(totalBudget) + '</span>';
+    items += '</div>';
 
-      items += '<div class="dash-fin-item">';
-      items += '<span class="dash-fin-label">Paid to Date</span>';
-      items += '<span class="dash-fin-value dash-fin-paid">' + formatCurrency(totalPaid) + '</span>';
-      items += '</div>';
+    items += '<div class="dash-fin-item">';
+    items += '<span class="dash-fin-label">Spent to Date</span>';
+    items += '<span class="dash-fin-value">' + formatCurrency(totalSpent) + '</span>';
+    items += '</div>';
 
-      if (totalOutstanding > 0) {
-        items += '<div class="dash-fin-item">';
-        items += '<span class="dash-fin-label">Outstanding</span>';
-        items += '<span class="dash-fin-value dash-fin-owed">' + formatCurrency(totalOutstanding) + '</span>';
-        items += '</div>';
-      }
-    }
+    items += '<div class="dash-fin-item">';
+    items += '<span class="dash-fin-label">Remaining</span>';
+    items += '<span class="dash-fin-value' + (remaining < 0 ? ' dash-fin-owed' : '') + '">' + formatCurrency(remaining) + '</span>';
+    items += '</div>';
 
-    if (approvedCOImpact !== 0) {
-      var coSign = approvedCOImpact > 0 ? '+' : '';
+    if (totalOutstanding > 0) {
       items += '<div class="dash-fin-item">';
-      items += '<span class="dash-fin-label">Approved Changes</span>';
-      items += '<span class="dash-fin-value' + (approvedCOImpact > 0 ? ' dash-fin-positive' : ' dash-fin-negative') + '">' + coSign + formatCurrency(approvedCOImpact) + '</span>';
+      items += '<span class="dash-fin-label">Invoices Due</span>';
+      items += '<span class="dash-fin-value dash-fin-owed">' + formatCurrency(totalOutstanding) + '</span>';
       items += '</div>';
     }
 
-    if (!items) return '';
+    // Progress bar
+    var bar = pct > 0
+      ? '<div class="dash-fin-bar"><div class="dash-fin-bar-fill" style="width:' + pct.toFixed(1) + '%;' + (pct > 100 ? 'background:#A0705A' : '') + '"></div></div>'
+        + '<div class="dash-fin-bar-label">' + pct.toFixed(0) + '% of budget spent</div>'
+      : '';
 
     return '<div class="dash-finances">'
       + '<div class="dash-finances-header">'
@@ -2514,6 +2517,7 @@
       + '<button class="dash-finances-link" data-client-nav="finances">View details →</button>'
       + '</div>'
       + '<div class="dash-finances-items">' + items + '</div>'
+      + bar
       + '</div>';
   }
 
@@ -7637,7 +7641,8 @@
             await Promise.all([
               loadChangeOrders(clientPid),
               loadInvoices(clientPid),
-              loadMessages(clientPid)
+              loadMessages(clientPid),
+              loadBudgetItems(clientPid)  // needed for home page finance snapshot
             ]);
           }
           appState = 'client';
