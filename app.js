@@ -78,6 +78,8 @@
   let budgetSaveTimer = null;   // debounce handle for budget input saves
   let budgetEditingLine = null; // id of line currently in edit mode
   let budgetAddingToCategory = null; // catCode where the add-line form is open
+  let cachedTemplate = null;    // master template codes loaded from Firestore for restore
+  let cachedTemplateLoading = false;
   let editProjectData = null;
 
   // Admin detail sub-tab
@@ -3876,6 +3878,105 @@
     showToast('Line deleted.');
   }
 
+  // ========================================
+  // TEMPLATE RESTORE — load master, detect missing, restore
+  // ========================================
+
+  // Load master template into memory (once per session)
+  async function loadMasterTemplateCache() {
+    if (cachedTemplate || cachedTemplateLoading) return;
+    cachedTemplateLoading = true;
+    try {
+      var snap = await db.collection('costCodeTemplates').doc('master_v1').collection('codes').get();
+      cachedTemplate = [];
+      snap.forEach(function(doc) { cachedTemplate.push(doc.data()); });
+      console.log('[Restore] Template loaded: ' + cachedTemplate.length + ' codes');
+    } catch(e) {
+      console.error('[Restore] Failed to load template:', e);
+    }
+    cachedTemplateLoading = false;
+    // Re-render so missing-line counts appear
+    if (adminDetailTab === 'budget') render();
+  }
+
+  // Apply the same filters as seedProjectBudget to get what SHOULD be in this project
+  function filterTemplateForProject(project) {
+    if (!cachedTemplate || !project) return [];
+    var tier       = project.budget_tier              || 'standard';
+    var ptype      = project.budget_project_type      || 'new_build';
+    var modules    = project.budget_modules           || [];
+    var inclRemodel = project.budget_remodel_conditions === true;
+    return cachedTemplate.filter(function(r) {
+      if (!r.tiers || r.tiers.indexOf(tier)   === -1) return false;
+      if (!r.project_types || r.project_types.indexOf(ptype) === -1) return false;
+      if (r.module !== null && r.module !== undefined && modules.indexOf(r.module) === -1) return false;
+      if (r.top_level_category === '26' && !inclRemodel) return false;
+      return true;
+    });
+  }
+
+  // Return template lines that are missing from the current project (optionally scoped to a category)
+  function getMissingTemplateLines(project, catCode) {
+    var shouldExist   = filterTemplateForProject(project);
+    var currentCodes  = {};
+    firestoreBudgetItems.forEach(function(i) { currentCodes[i.cost_code] = true; });
+    return shouldExist.filter(function(r) {
+      if (!r.parent_code) return false; // skip category headers
+      if (catCode && r.top_level_category !== catCode) return false;
+      return !currentCodes[r.cost_code];
+    });
+  }
+
+  // Restore missing template lines (for a category or the whole budget)
+  async function restoreMissingLines(projectId, project, catCode) {
+    var missing = getMissingTemplateLines(project, catCode || null);
+    if (!missing.length) { showToast('Nothing to restore — all template lines are present.'); return; }
+
+    var batch    = db.batch();
+    var budgetRef = db.collection('projects').doc(projectId).collection('budgetItems');
+    var nowStamp  = firebase.firestore.FieldValue.serverTimestamp();
+
+    missing.forEach(function(r) {
+      var newItem = {
+        cost_code:          r.cost_code,
+        parent_code:        r.parent_code || null,
+        name:               r.name,
+        description:        r.description || '',
+        sort_order:         r.sort_order  || 0,
+        top_level_category: r.top_level_category,
+        top_level_name:     r.top_level_name,
+        cost_type:          r.cost_type   || 'subcontractor',
+        help_text:          r.help_text   || null,
+        client_visible:     r.client_visible === true,
+        billable:           r.billable !== false,
+        is_allowance:       r.is_allowance  === true,
+        is_selection:       r.is_selection  === true,
+        is_change_order:    r.is_change_order === true,
+        is_contingency:     r.is_contingency  === true,
+        fee_bucket:         r.fee_bucket   || 'none',
+        active:             r.active_by_default !== false,
+        budget_amount:      null,
+        actual_amount:      null,
+        selection_status:   r.is_allowance ? 'not_started' : null,
+        vendor:             null,
+        notes:              null,
+        status:             'not_started',
+        seeded_from:        'master_v1',
+        created_at:         nowStamp,
+        updated_at:         nowStamp
+      };
+      var ref = budgetRef.doc();
+      batch.set(ref, newItem);
+      firestoreBudgetItems.push(Object.assign({ id: ref.id }, newItem));
+    });
+
+    await batch.commit();
+
+    if (catCode) budgetCategoryOpen[catCode] = true;
+    render();
+    showToast(missing.length + ' line' + (missing.length !== 1 ? 's' : '') + ' restored from template.');
+  }
+
   function renderTemplateBudgetLine(item, inactive) {
     // Show inline edit form if this line is being edited
     if (budgetEditingLine === item.id) return renderTemplateBudgetLineEdit(item);
@@ -3929,18 +4030,23 @@
       + '<div class="budget-progress-label" id="tbudget-progress-label">'+pct.toFixed(1)+'% of budget spent</div>'
       + '</div></div>';
 
-    // ── Info bar ───────────────────────────────────────────────────────────────────
+    // ── Info bar + global restore ──────────────────────────────────────────────────────────────
     var tier = project.budget_tier || 'standard';
     var ptype = project.budget_project_type || '';
     var ctype = project.budget_contract_type || '';
-    var tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+    var tierLabel  = tier.charAt(0).toUpperCase() + tier.slice(1);
     var ptypeLabel = { new_build:'New Build', remodel:'Remodel', addition:'Addition', adu:'ADU' }[ptype] || ptype;
     var ctypeLabel = { cost_plus:'Cost-Plus', fixed_price:'Fixed-Price', gmp:'GMP' }[ctype] || ctype;
+    var totalMissing = cachedTemplate ? getMissingTemplateLines(project, null).length : -1;
+    var restoreAllBtn = totalMissing > 0
+      ? '<button class="tbudget-restore-all" id="tRestoreAllBtn">&#8635; Restore missing ('+totalMissing+')</button>'
+      : (totalMissing === 0 ? '<span class="tbudget-all-present">✓ All template lines present</span>' : '');
     html += '<div class="tbudget-info-bar">'
       + '<span>Template: <strong>'+tierLabel+'</strong></span>'
       + '<span>Type: <strong>'+ptypeLabel+'</strong></span>'
       + '<span>Contract: <strong>'+ctypeLabel+'</strong></span>'
-      + '<span><strong>'+firestoreBudgetItems.length+'</strong> lines loaded</span>'
+      + '<span><strong>'+firestoreBudgetItems.length+'</strong> lines</span>'
+      + (restoreAllBtn ? '<span style="margin-left:auto">'+restoreAllBtn+'</span>' : '')
       + '</div>';
 
     // ── Column headers ─────────────────────────────────────────────────────────────────
@@ -3962,6 +4068,12 @@
 
       html += '<div class="tbudget-category">';
 
+      // Category-level missing count
+      var catMissing = cachedTemplate ? getMissingTemplateLines(project, grp.catCode).length : 0;
+      var catRestoreBtn = catMissing > 0
+        ? '<button class="tbudget-cat-restore" data-restore-cat="'+grp.catCode+'" title="Restore '+catMissing+' missing line'+(catMissing>1?'s':'')+'">&#8635; '+catMissing+'</button>'
+        : '';
+
       // Category header row
       html += '<div class="tbudget-cat-header" data-toggle-cat="'+grp.catCode+'">'
         + '<div class="tbudget-cat-left">'
@@ -3969,6 +4081,7 @@
         + '<span class="tbudget-cat-code">'+grp.catCode+'</span>'
         + '<span class="tbudget-cat-name">'+escapeHtml(grp.catName)+'</span>'
         + '<span class="tbudget-cat-count">'+(grp.active.length+grp.inactive.length)+' lines'+(grp.inactive.length?' ('+grp.inactive.length+' optional)':'')+'</span>'
+        + catRestoreBtn
         + '</div>'
         + '<div class="tbudget-cat-right">'
         + '<span class="tbudget-cat-budget">'+(catBudget>0?formatCurrency(catBudget):'—')+'</span>'
@@ -6113,6 +6226,31 @@
   // TEMPLATE BUDGET EVENT BINDING
   // ========================================
   function bindTemplateBudgetEvents(projectId) {
+    var project = allProjects.find(function(p){ return p.id === projectId; });
+
+    // Load master template for restore (async, re-renders when ready)
+    loadMasterTemplateCache();
+
+    // Restore all missing lines across the whole budget
+    var restoreAllBtn = document.getElementById('tRestoreAllBtn');
+    if (restoreAllBtn) {
+      restoreAllBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (!project) return;
+        if (!confirm('Restore all missing template lines to this budget? Existing amounts will not be changed.')) return;
+        restoreMissingLines(projectId, project, null);
+      });
+    }
+
+    // Restore missing lines for a specific category
+    document.querySelectorAll('[data-restore-cat]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var catCode = this.dataset.restoreCat;
+        if (!project) return;
+        restoreMissingLines(projectId, project, catCode);
+      });
+    });
 
     // Expand / collapse categories
     document.querySelectorAll('[data-toggle-cat]').forEach(function(el) {

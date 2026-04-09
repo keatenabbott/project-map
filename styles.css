@@ -2672,6 +2672,43 @@ h1, h2, h3, h4, h5, h6 {
 }
 .tbudget-add-btn:hover { color: var(--accent); }
 
+/* Restore buttons */
+.tbudget-restore-all {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(196,165,123,0.1);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background var(--transition);
+}
+.tbudget-restore-all:hover { background: rgba(196,165,123,0.2); }
+.tbudget-all-present {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--success, #5a8a6a);
+  letter-spacing: 0.04em;
+}
+.tbudget-cat-restore {
+  font-family: var(--font-nav);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(196,165,123,0.1);
+  border: 1px solid rgba(196,165,123,0.4);
+  border-radius: 3px;
+  padding: 2px 7px;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: background var(--transition);
+}
+.tbudget-cat-restore:hover { background: rgba(196,165,123,0.25); }
+
 .modal.modal-budget .admin-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
