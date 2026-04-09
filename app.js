@@ -74,6 +74,35 @@
   let clientView = 'dashboard'; // dashboard | budget | photos | documents | selections | updates
   let showModal = null;         // null | 'addClient' | 'newProject' | 'editProject' | 'addEmployee'
   let wizardState = null;       // multi-step new-project wizard state
+
+  // ========================================
+  // URL HASH ROUTING (persist view on refresh)
+  // ========================================
+  function updateHash() {
+    if (appState !== 'admin') return;
+    if (adminView === 'detail' && adminSelectedProject) {
+      history.replaceState(null, '', '#project/' + adminSelectedProject + '/' + (adminDetailTab || 'details'));
+    } else {
+      history.replaceState(null, '', '#admin');
+    }
+  }
+
+  function restoreFromHash() {
+    var hash = (location.hash || '').replace('#', '');
+    if (!hash.startsWith('project/')) return;
+    var parts = hash.split('/');
+    var pid   = parts[1];
+    var tab   = parts[2] || 'details';
+    if (!pid) return;
+    var project = allProjects.find(function(p) { return p.id === pid; });
+    if (!project) return;
+    adminSelectedProject = pid;
+    adminView = 'detail';
+    adminDetailTab = tab;
+    firestoreBudgetItems = [];
+    budgetLoadedForProject = null;
+    currentMessages = [];
+  }
   let budgetCategoryOpen = {};  // { '01': true, '05': false } — template budget expand state
   let budgetSaveTimer = null;   // debounce handle for budget input saves
   let budgetLoadedForProject = null; // tracks which projectId has been loaded into firestoreBudgetItems
@@ -6196,6 +6225,7 @@
         firestoreBudgetItems = [];
         budgetLoadedForProject = null;
         currentMessages = [];
+        updateHash();
         render();
       });
     });
@@ -6209,6 +6239,7 @@
         firestoreBudgetItems = [];
         budgetLoadedForProject = null;
         currentMessages = [];
+        updateHash();
         render();
       });
     });
@@ -6227,10 +6258,12 @@
       adminDetailTab = 'details';
       adminPreviewClientView = false;
       firestoreBudgetItems = [];
+      budgetLoadedForProject = null;
       projectPhotos = [];
       projectDocuments = [];
       projectSelections = [];
       currentChangeOrders = [];
+      updateHash();
       currentInvoices = [];
       currentMessages = [];
       lightboxPhoto = null;
@@ -6289,6 +6322,7 @@
       btn.addEventListener('click', async () => {
         const tab = btn.dataset.detailTab;
         adminDetailTab = tab;
+        updateHash();
         window.scrollTo(0, 0);
         if (tab === 'budget') {
           const proj = allProjects.find(p => p.id === adminSelectedProject);
@@ -7806,6 +7840,7 @@
         if (userProfile.role === 'admin') {
           await refreshAdminData();
           appState = 'admin';
+          restoreFromHash(); // restore last-viewed project/tab from URL
           // Auto-migrate existing admins: ensure settings/portal is marked initialized.
           db.collection('settings').doc('portal').set({ adminInitialized: true }, { merge: true }).catch(() => {});
           // Auto-upload cost code template if not already in Firestore
