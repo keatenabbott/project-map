@@ -3244,6 +3244,92 @@ h1, h2, h3, h4, h5, h6 {
 
 .invoice-view-btn:hover { background: var(--surface-hover); }
 
+/* ================================================
+   FINANCES TAB
+   ================================================ */
+.finances-section {
+  margin-bottom: 48px;
+}
+.finances-section-label {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.finances-details {
+  margin-top: 20px;
+}
+.finances-details-summary {
+  font-family: var(--font-nav);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 10px 0;
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.finances-details-summary::-webkit-details-marker { display: none; }
+.finances-details-summary::before {
+  content: '+';
+  font-size: 14px;
+  color: var(--accent);
+  line-height: 1;
+}
+details[open] .finances-details-summary::before { content: '−'; }
+.finances-details-summary:hover { color: var(--text); }
+
+/* ================================================
+   ACTION NEEDED BANNER (Home dashboard)
+   ================================================ */
+.action-needed {
+  margin-bottom: 28px;
+}
+.action-needed-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 13px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition), border-color var(--transition);
+}
+.action-needed-item:hover {
+  background: rgba(196, 165, 123, 0.06);
+}
+.action-needed-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.action-needed-text {
+  flex: 1;
+  font-family: var(--font-nav);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.action-needed-arrow {
+  font-size: 13px;
+  color: var(--accent);
+}
+
 .invoice-empty {
   text-align: center;
   padding: 60px 20px;

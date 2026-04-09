@@ -2067,11 +2067,10 @@
         <div class="nav-logo"><svg viewBox='0 0 18 14' width='18' height='14' fill='none' stroke='currentColor' stroke-width='1.2' stroke-linecap='round' style='opacity:0.7;margin-right:7px;vertical-align:middle;'><path d='M1 11 Q4 8 9 6 Q14 4 17 2'/><path d='M2 13 Q5 10 9 8 Q13 6 16 5'/><circle cx='9' cy='6.5' r='1.4' fill='currentColor' stroke='none'/></svg>${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
         <div class="nav-links">
           ${project ? `
-            <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Project</button>
-            <button class="nav-link ${clientView === 'budget' ? 'active' : ''}" data-client-nav="budget">Budget</button>
-            <button class="nav-link ${clientView === 'invoices' ? 'active' : ''}" data-client-nav="invoices">Invoices</button>
-            <button class="nav-link ${clientView === 'updates' ? 'active' : ''}" data-client-nav="updates">Field Notes</button>
-            <button class="nav-link ${clientView === 'changeOrders' ? 'active' : ''}" data-client-nav="changeOrders">Change Orders</button>
+            <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Home</button>
+            <button class="nav-link ${clientView === 'finances' ? 'active' : ''}" data-client-nav="finances">Finances</button>
+            <button class="nav-link ${clientView === 'updates' ? 'active' : ''}" data-client-nav="updates">Updates</button>
+            <button class="nav-link ${clientView === 'changeOrders' ? 'active' : ''}" data-client-nav="changeOrders">Approvals</button>
             <button class="nav-link ${clientView === 'selections' ? 'active' : ''}" data-client-nav="selections">Selections</button>
             <button class="nav-link ${clientView === 'documents' ? 'active' : ''}" data-client-nav="documents">Documents</button>
           ` : ''}
@@ -2080,12 +2079,11 @@
       </nav>
       <main class="main-content">
         ${project ? (function() {
-          if (clientView === 'budget') return renderClientBudget(project);
+          if (clientView === 'finances') return renderClientFinances(project);
           if (clientView === 'photos') return renderClientPhotosTab(project);
           if (clientView === 'documents') return renderClientDocumentsTab(project);
           if (clientView === 'selections') return renderClientSelectionsTab(project);
           if (clientView === 'changeOrders') return renderClientChangeOrders(project);
-          if (clientView === 'invoices') return renderClientInvoicesTab(project);
           if (clientView === 'updates') return renderUpdatesTab(project, 'client');
           return renderClientDashboard(project);
         })() : renderClientNoProject()}
@@ -2145,16 +2143,39 @@
 
     return `
       ${heroHtml}
+      ${renderActionNeeded()}
       ${renderProjectOverview(project, cp, cpNum, cpDef)}
       ${renderVisualTimeline(project)}
-      ${renderTimeline(project)}
       ${renderDashboardFieldNotes()}
     `;
   }
 
+  // Action Needed banner — shows on Home if there are pending COs or unpaid invoices
+  function renderActionNeeded() {
+    var pendingCOs = currentChangeOrders.filter(function(co) { return co.status === 'pending'; });
+    var unpaidInvoices = currentInvoices.filter(function(inv) { return inv.status !== 'paid' && inv.status !== 'void'; });
+    if (pendingCOs.length === 0 && unpaidInvoices.length === 0) return '';
+    var items = '';
+    if (pendingCOs.length > 0) {
+      items += '<button class="action-needed-item" data-client-nav="changeOrders">';
+      items += '<span class="action-needed-dot"></span>';
+      items += '<span class="action-needed-text">Change order' + (pendingCOs.length > 1 ? 's' : '') + ' pending your approval</span>';
+      items += '<span class="action-needed-arrow">→</span>';
+      items += '</button>';
+    }
+    if (unpaidInvoices.length > 0) {
+      items += '<button class="action-needed-item" data-client-nav="finances">';
+      items += '<span class="action-needed-dot"></span>';
+      items += '<span class="action-needed-text">Invoice' + (unpaidInvoices.length > 1 ? 's' : '') + ' ready for payment</span>';
+      items += '<span class="action-needed-arrow">→</span>';
+      items += '</button>';
+    }
+    return '<div class="action-needed">' + items + '</div>';
+  }
+
   function renderDashboardFieldNotes() {
     if (!currentMessages || currentMessages.length === 0) return '';
-    const recent = currentMessages.slice(-3).reverse();
+    const recent = currentMessages.slice(-1).reverse();
     let itemsHtml = '';
     recent.forEach(function(msg) {
       const senderName = escapeHtml(msg.senderName || 'Team');
@@ -2271,6 +2292,171 @@
     const calHtml = renderPhaseCalendar(project.phases, 'clientTimeline');
 
     return '<div class="phases-layout"><div>' + timelineHtml + '</div>' + calHtml + '</div>';
+  }
+
+  // ========================================
+  // FINANCES TAB (Budget summary + Invoices)
+  // ========================================
+  function renderClientFinances(project) {
+    var hasSheet = project && project.googleSheetUrl && extractSheetId(project.googleSheetUrl);
+    var html = '<div class="welcome-header"><h1>Finances</h1><p>' + escapeHtml(project.name) + '</p></div>';
+
+    // ── BUDGET ────────────────────────────────────────────────────────────────
+    html += '<div class="finances-section">';
+    html += '<div class="finances-section-label">Budget</div>';
+
+    if (hasSheet) {
+      if (budgetLoading || !budgetData) {
+        html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading budget…</span></div>';
+      } else if (budgetFetchError) {
+        html += '<div class="budget-fetch-error"><p class="budget-fetch-error-msg">&#9888; Could not load budget: ' + escapeHtml(budgetFetchError) + '</p>';
+        html += '<button class="btn btn-secondary btn-small" id="budgetRefreshBtn" style="margin-top:12px">Retry</button></div>';
+      } else {
+        var syncTime = budgetLastSynced
+          ? budgetLastSynced.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+            budgetLastSynced.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+          : null;
+        if (syncTime) {
+          html += '<div class="budget-sync-row"><span class="budget-sync-info">Last synced: ' + escapeHtml(syncTime) + '</span>';
+          html += '<button class="budget-refresh-btn" id="budgetRefreshBtn"><span class="spinner"></span>Refresh</button></div>';
+        }
+        html += renderBudgetSummary(false);
+        html += '<details class="finances-details"><summary class="finances-details-summary">View detailed breakdown</summary>';
+        html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>';
+        html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
+        html += '</tr></thead><tbody>';
+        var grandBudgetS = 0, grandActualS = 0, grandVarianceS = 0;
+        budgetData.forEach(function(cat, catIndex) {
+          var isOpen = budgetExpandedCategories[catIndex] === true;
+          var catVarClass = cat.variance < 0 ? 'variance-over' : 'variance-under';
+          var catBadge = cat.status === '100%'
+            ? '<span class="budget-status-badge budget-status-complete">Complete</span>'
+            : (cat.actual > 0 ? '<span class="budget-status-badge budget-status-in-progress">In Progress</span>' : '');
+          html += '<tr class="budget-row-category" data-budget-cat="' + catIndex + '">';
+          html += '<td><span class="budget-category-toggle ' + (isOpen ? 'open' : '') + '">&#9654;</span>' + escapeHtml(cat.name) + '</td>';
+          html += '<td>' + formatCurrency(cat.budget) + '</td><td>' + formatCurrency(cat.actual) + '</td>';
+          html += '<td class="' + catVarClass + '">' + formatCurrency(cat.variance) + '</td><td>' + catBadge + '</td></tr>';
+          cat.subItems.forEach(function(item) {
+            var ivClass = item.variance < 0 ? 'variance-over' : 'variance-under';
+            var iBadge = (item.status === '100%' || item.status === '100' || item.status === '1') ? '<span class="budget-status-badge budget-status-complete">Complete</span>' : '';
+            html += '<tr class="budget-row-sub ' + (isOpen ? 'expanded' : '') + '" data-budget-cat-child="' + catIndex + '">';
+            html += '<td>' + escapeHtml(item.description) + (item.vendor ? '<br><span style="color:var(--text-tertiary);font-size:11px">' + escapeHtml(item.vendor) + '</span>' : '') + '</td>';
+            html += '<td>' + formatCurrency(item.budget) + '</td><td>' + formatCurrency(item.actual) + '</td>';
+            html += '<td class="' + ivClass + '">' + formatCurrency(item.variance) + '</td><td>' + iBadge + '</td></tr>';
+          });
+          var tvClass = cat.totalVariance < 0 ? 'variance-over' : 'variance-under';
+          html += '<tr class="budget-row-total ' + (isOpen ? 'expanded' : '') + '" data-budget-cat-child="' + catIndex + '">';
+          html += '<td style="padding-left:40px;font-weight:600;">TOTAL</td>';
+          html += '<td>' + formatCurrency(cat.totalBudget) + '</td><td>' + formatCurrency(cat.totalActual) + '</td>';
+          html += '<td class="' + tvClass + '">' + formatCurrency(cat.totalVariance) + '</td><td></td></tr>';
+          grandBudgetS += cat.budget; grandActualS += cat.actual; grandVarianceS += cat.variance;
+        });
+        var gvClassS = grandVarianceS < 0 ? 'variance-over' : 'variance-under';
+        html += '<tr class="budget-row-grand"><td>TOTALS</td>';
+        html += '<td>' + formatCurrency(grandBudgetS) + '</td><td>' + formatCurrency(grandActualS) + '</td>';
+        html += '<td class="' + gvClassS + '">' + formatCurrency(grandVarianceS) + '</td><td></td></tr>';
+        html += '</tbody></table></div></details>';
+      }
+    } else {
+      if (firestoreBudgetLoading) {
+        html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading budget…</span></div>';
+      } else if (firestoreBudgetItems.length === 0) {
+        html += '<div class="empty-state"><div class="empty-state-icon">\ud83d\udcca</div><div class="empty-state-title">Budget Coming Soon</div>';
+        html += '<div class="empty-state-message">Your builder will add budget details here as the project progresses.</div></div>';
+      } else {
+        var totals = getFirestoreBudgetTotals();
+        var pctSpent = totals.budget > 0 ? Math.min(100, (totals.actual / totals.budget) * 100) : 0;
+        var grouped = groupBudgetItemsByCategory();
+        html += '<div class="budget-summary"><div class="budget-summary-main"><div class="budget-summary-amounts">';
+        html += '<div class="budget-amount-block"><span class="budget-amount-label">Total Budget</span><span class="budget-amount-value">' + formatCurrency(totals.budget) + '</span></div>';
+        html += '<div class="budget-amount-block"><span class="budget-amount-label">Total Spent</span><span class="budget-amount-value spent">' + formatCurrency(totals.actual) + '</span></div>';
+        html += '<div class="budget-amount-block"><span class="budget-amount-label">Remaining</span><span class="budget-amount-value remaining"' + (totals.variance < 0 ? ' style="color:#A0705A"' : '') + '>' + formatCurrency(totals.variance) + '</span></div>';
+        html += '</div><div class="budget-progress-bar"><div class="budget-progress-fill" style="width:' + pctSpent.toFixed(1) + '%;' + (pctSpent > 100 ? 'background:#A0705A' : '') + '"></div></div>';
+        html += '<div class="budget-progress-label">' + pctSpent.toFixed(1) + '% of budget spent</div>';
+        html += '</div></div>';
+        html += '<details class="finances-details"><summary class="finances-details-summary">View detailed breakdown</summary>';
+        html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>';
+        html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
+        html += '</tr></thead><tbody>';
+        var grandBudgetF = 0, grandActualF = 0;
+        Object.keys(grouped).forEach(function(catName, catIndex) {
+          var items = grouped[catName];
+          var catBudget = 0, catActual = 0;
+          items.forEach(function(it) { catBudget += Number(it.budgetAmount) || 0; catActual += Number(it.actualAmount) || 0; });
+          var catVariance = catBudget - catActual;
+          var catVarClass = catVariance < 0 ? 'variance-over' : 'variance-under';
+          var allComplete = items.every(function(it) { return it.status === 'complete'; });
+          var catBadge = allComplete && items.length > 0
+            ? '<span class="budget-status-badge budget-status-complete">Complete</span>'
+            : (catActual > 0 ? '<span class="budget-status-badge budget-status-in-progress">In Progress</span>' : '');
+          var isOpen = budgetExpandedCategories[catIndex] === true;
+          html += '<tr class="budget-row-category" data-budget-cat="' + catIndex + '">';
+          html += '<td><span class="budget-category-toggle ' + (isOpen ? 'open' : '') + '">&#9654;</span>' + escapeHtml(catName) + '</td>';
+          html += '<td>' + formatCurrency(catBudget) + '</td><td>' + formatCurrency(catActual) + '</td>';
+          html += '<td class="' + catVarClass + '">' + formatCurrency(catVariance) + '</td><td>' + catBadge + '</td></tr>';
+          items.forEach(function(item) {
+            var b = Number(item.budgetAmount) || 0, a = Number(item.actualAmount) || 0, v = b - a;
+            var vClass = v < 0 ? 'variance-over' : 'variance-under';
+            var iBadge = item.status === 'complete' ? '<span class="budget-status-badge budget-status-complete">Complete</span>' : '';
+            html += '<tr class="budget-row-sub ' + (isOpen ? 'expanded' : '') + '" data-budget-cat-child="' + catIndex + '">';
+            html += '<td>' + escapeHtml(item.costCode) + (item.vendor ? '<br><span style="color:var(--text-tertiary);font-size:11px">' + escapeHtml(item.vendor) + '</span>' : '') + '</td>';
+            html += '<td>' + formatCurrency(b) + '</td><td>' + formatCurrency(a) + '</td>';
+            html += '<td class="' + vClass + '">' + formatCurrency(v) + '</td><td>' + iBadge + '</td></tr>';
+          });
+          var tvClass = catVariance < 0 ? 'variance-over' : 'variance-under';
+          html += '<tr class="budget-row-total ' + (isOpen ? 'expanded' : '') + '" data-budget-cat-child="' + catIndex + '">';
+          html += '<td style="padding-left:40px;font-weight:600;">TOTAL</td>';
+          html += '<td>' + formatCurrency(catBudget) + '</td><td>' + formatCurrency(catActual) + '</td>';
+          html += '<td class="' + tvClass + '">' + formatCurrency(catVariance) + '</td><td></td></tr>';
+          grandBudgetF += catBudget; grandActualF += catActual;
+        });
+        var grandVarianceF = grandBudgetF - grandActualF;
+        var gvClassF = grandVarianceF < 0 ? 'variance-over' : 'variance-under';
+        html += '<tr class="budget-row-grand"><td>TOTALS</td>';
+        html += '<td>' + formatCurrency(grandBudgetF) + '</td><td>' + formatCurrency(grandActualF) + '</td>';
+        html += '<td class="' + gvClassF + '">' + formatCurrency(grandVarianceF) + '</td><td></td></tr>';
+        html += '</tbody></table></div></details>';
+      }
+    }
+    html += '</div>'; // .finances-section
+
+    // ── INVOICES ──────────────────────────────────────────────────────────
+    html += '<div class="finances-section">';
+    html += '<div class="finances-section-label">Invoices</div>';
+    if (invoicesLoading) {
+      html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices…</span></div>';
+    } else {
+      html += renderInvoicesSummaryBar();
+      if (currentInvoices.length === 0) {
+        html += '<div class="empty-state"><div class="empty-state-icon">\U0001f9fe</div><div class="empty-state-title">No Invoices Yet</div>';
+        html += '<div class="empty-state-message">Invoices will appear here when your builder adds them. You\'ll be able to review and pay directly from this page.</div></div>';
+      } else {
+        currentInvoices.forEach(function(inv) {
+          var isPaid = inv.status === 'paid';
+          html += '<div class="invoice-item' + (isPaid ? ' is-paid' : '') + '">';
+          html += '<div class="invoice-item-header"><div class="invoice-item-title">' + escapeHtml(inv.title || '') + '</div>';
+          html += '<div style="display:flex;align-items:center;gap:8px;"><div class="invoice-amount">' + formatCurrency(inv.amount) + '</div>';
+          html += renderInvoiceStatusBadge(inv.status) + '</div></div>';
+          html += '<div class="invoice-item-meta">';
+          if (inv.dueDate) html += '<span style="font-family:var(--font-nav);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-tertiary)">Due: ' + formatDate(inv.dueDate) + '</span>';
+          html += '</div>';
+          if (inv.notes) html += '<div class="invoice-item-notes">' + escapeHtml(inv.notes) + '</div>';
+          if (inv.invoiceUrl) {
+            html += '<div class="invoice-item-footer">';
+            if (!isPaid) {
+              html += '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-pay-btn">Pay Now</a>';
+            } else {
+              html += '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-view-btn">View Invoice</a>';
+            }
+            html += '</div>';
+          }
+          html += '</div>';
+        });
+      }
+    }
+    html += '</div>'; // .finances-section
+
+    return html;
   }
 
   function renderClientBudget(project) {
@@ -2704,16 +2890,13 @@
       bindClientChangeOrderEvents();
     }
 
-    if (clientView === 'invoices') {
+    if (clientView === 'finances') {
+      bindBudgetEvents();
       bindClientInvoiceEvents();
     }
 
     if (clientView === 'updates') {
       bindUpdatesEvents(userProfile.projectId, 'client');
-    }
-
-    if (clientView === 'budget') {
-      bindBudgetEvents();
     }
 
     // Client photo filter events
@@ -2953,11 +3136,10 @@
       <nav class="nav-bar">
         <div class="nav-logo"><svg viewBox='0 0 18 14' width='18' height='14' fill='none' stroke='currentColor' stroke-width='1.2' stroke-linecap='round' style='opacity:0.7;margin-right:7px;vertical-align:middle;'><path d='M1 11 Q4 8 9 6 Q14 4 17 2'/><path d='M2 13 Q5 10 9 8 Q13 6 16 5'/><circle cx='9' cy='6.5' r='1.4' fill='currentColor' stroke='none'/></svg>${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
         <div class="nav-links">
-          <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Project</button>
-          <button class="nav-link ${clientView === 'budget' ? 'active' : ''}" data-client-nav="budget">Budget</button>
-          <button class="nav-link ${clientView === 'invoices' ? 'active' : ''}" data-client-nav="invoices">Invoices</button>
-          <button class="nav-link ${clientView === 'updates' ? 'active' : ''}" data-client-nav="updates">Field Notes</button>
-          <button class="nav-link ${clientView === 'changeOrders' ? 'active' : ''}" data-client-nav="changeOrders">Change Orders</button>
+          <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Home</button>
+          <button class="nav-link ${clientView === 'finances' ? 'active' : ''}" data-client-nav="finances">Finances</button>
+          <button class="nav-link ${clientView === 'updates' ? 'active' : ''}" data-client-nav="updates">Updates</button>
+          <button class="nav-link ${clientView === 'changeOrders' ? 'active' : ''}" data-client-nav="changeOrders">Approvals</button>
           <button class="nav-link ${clientView === 'selections' ? 'active' : ''}" data-client-nav="selections">Selections</button>
           <button class="nav-link ${clientView === 'documents' ? 'active' : ''}" data-client-nav="documents">Documents</button>
         </div>
@@ -2965,11 +3147,10 @@
     `;
 
     let content = '';
-    if (clientView === 'budget') content = renderClientBudget(project);
+    if (clientView === 'finances') content = renderClientFinances(project);
     else if (clientView === 'documents') content = renderClientDocumentsTab(project);
     else if (clientView === 'selections') content = renderClientSelectionsTab(project);
     else if (clientView === 'changeOrders') content = renderClientChangeOrders(project);
-    else if (clientView === 'invoices') content = renderClientInvoicesTab(project);
     else if (clientView === 'updates') content = renderUpdatesTab(project, 'client');
     else content = renderClientDashboard(project);
 
@@ -4952,10 +5133,12 @@
           clientView = btn.dataset.clientNav;
           // Lazy load data for preview
           const pid = adminSelectedProject;
-          if (clientView === 'budget' && firestoreBudgetItems.length === 0) loadBudgetItems(pid);
+          if (clientView === 'finances') {
+            if (firestoreBudgetItems.length === 0 && !firestoreBudgetLoading) loadBudgetItems(pid);
+            if (currentInvoices.length === 0 && !invoicesLoading) loadInvoices(pid);
+          }
           if (clientView === 'documents' && projectDocuments.length === 0) loadDocuments(pid);
           if (clientView === 'selections' && projectSelections.length === 0) loadSelections(pid);
-          if (clientView === 'invoices' && currentInvoices.length === 0) loadInvoices(pid);
           if (clientView === 'updates' && currentMessages.length === 0) loadMessages(pid);
           if (clientView === 'changeOrders' && currentChangeOrders.length === 0) {
             loadChangeOrders(pid).then(() => { bindClientChangeOrderEvents(); });
@@ -6228,9 +6411,17 @@
           allProjects = allProjects.filter(p => assigned.indexOf(p.id) >= 0);
           appState = 'employee';
         } else {
-          // Client — load their project
+          // Client — load their project and pre-load action items for the Home dashboard
           await loadAllProjects();
           await loadAllUsers();
+          const clientPid = userProfile.projectId;
+          if (clientPid) {
+            await Promise.all([
+              loadChangeOrders(clientPid),
+              loadInvoices(clientPid),
+              loadMessages(clientPid)
+            ]);
+          }
           appState = 'client';
         }
 
