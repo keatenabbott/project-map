@@ -73,6 +73,7 @@
   let adminPreviewClientView = false;
   let clientView = 'dashboard'; // dashboard | budget | photos | documents | selections | updates
   let showModal = null;         // null | 'addClient' | 'newProject' | 'editProject' | 'addEmployee'
+  let wizardState = null;       // multi-step new-project wizard state
   let editProjectData = null;
 
   // Admin detail sub-tab
@@ -744,6 +745,195 @@
 
   async function updateProject(projectId, data) {
     await db.collection('projects').doc(projectId).update(data);
+  }
+
+  // ========================================
+  // COST CODE TEMPLATE — UPLOAD & SEEDING
+  // ========================================
+
+  // Upload master template from hosted JSON to Firestore (run once, admin only)
+  async function uploadCostCodeTemplate() {
+    try {
+      const resp = await fetch('/cost-code-template.json');
+      if (!resp.ok) throw new Error('Could not load template file: ' + resp.status);
+      const records = await resp.json();
+
+      const batch = db.batch();
+      const metaRef = db.collection('costCodeTemplates').doc('master_v1');
+      const codesRef = metaRef.collection('codes');
+
+      batch.set(metaRef, {
+        version:      '1.0',
+        record_count: records.length,
+        created_at:   firebase.firestore.FieldValue.serverTimestamp(),
+        updated_at:   firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      records.forEach(function(r) {
+        batch.set(codesRef.doc(r.cost_code), r);
+      });
+
+      await batch.commit();
+      console.log('[CostCode] Template uploaded: ' + records.length + ' records');
+      return true;
+    } catch (e) {
+      console.error('[CostCode] Upload failed:', e);
+      return false;
+    }
+  }
+
+  // Check if template exists; auto-upload if not
+  async function ensureCostCodeTemplate() {
+    try {
+      const doc = await db.collection('costCodeTemplates').doc('master_v1').get();
+      if (!doc.exists) {
+        console.log('[CostCode] Template not found — uploading now...');
+        await uploadCostCodeTemplate();
+      }
+    } catch (e) {
+      console.warn('[CostCode] Could not verify template:', e);
+    }
+  }
+
+  // Seed a project’s budgetItems from the master template
+  async function seedProjectBudget(projectId, options) {
+    // options: { tier, project_type, contract_type, modules[], include_remodel_conditions }
+    try {
+      const snap = await db.collection('costCodeTemplates')
+        .doc('master_v1').collection('codes').get();
+
+      if (snap.empty) {
+        console.warn('[CostCode] Template empty — cannot seed');
+        return 0;
+      }
+
+      const batch = db.batch();
+      const budgetRef = db.collection('projects').doc(projectId).collection('budgetItems');
+      let count = 0;
+
+      snap.forEach(function(doc) {
+        var r = doc.data();
+
+        // 1 — tier filter
+        if (!r.tiers || r.tiers.indexOf(options.tier) === -1) return;
+
+        // 2 — project type filter
+        if (!r.project_types || r.project_types.indexOf(options.project_type) === -1) return;
+
+        // 3 — module gate
+        if (r.module !== null && r.module !== undefined) {
+          if (!options.modules || options.modules.indexOf(r.module) === -1) return;
+        }
+
+        // 4 — remodel conditions gate
+        if (r.top_level_category === '26') {
+          if (!options.include_remodel_conditions) return;
+        }
+
+        batch.set(budgetRef.doc(), {
+          cost_code:          r.cost_code,
+          parent_code:        r.parent_code || null,
+          name:               r.name,
+          description:        r.description || '',
+          sort_order:         r.sort_order || 0,
+          top_level_category: r.top_level_category,
+          top_level_name:     r.top_level_name,
+          cost_type:          r.cost_type || 'subcontractor',
+          help_text:          r.help_text || null,
+          client_visible:     r.client_visible === true,
+          billable:           r.billable !== false,
+          is_allowance:       r.is_allowance === true,
+          is_selection:       r.is_selection === true,
+          is_change_order:    r.is_change_order === true,
+          is_contingency:     r.is_contingency === true,
+          fee_bucket:         r.fee_bucket || 'none',
+          active:             r.active_by_default !== false,
+          contract_type:      options.contract_type,
+          project_type:       options.project_type,
+          budget_amount:      null,
+          actual_amount:      null,
+          labor_amount:       null,
+          material_amount:    null,
+          sub_amount:         null,
+          markup_pct:         null,
+          allowance_amount:   null,
+          selection_status:   r.is_allowance ? 'not_started' : null,
+          vendor:             null,
+          owner_selected:     false,
+          notes:              null,
+          status:             'not_started',
+          seeded_from:        'master_v1',
+          created_at:         firebase.firestore.FieldValue.serverTimestamp(),
+          updated_at:         firebase.firestore.FieldValue.serverTimestamp()
+        });
+        count++;
+      });
+
+      // Save template settings on project document
+      batch.update(db.collection('projects').doc(projectId), {
+        budget_template_version:      'master_v1',
+        budget_tier:                  options.tier,
+        budget_project_type:          options.project_type,
+        budget_contract_type:         options.contract_type,
+        budget_modules:               options.modules || [],
+        budget_remodel_conditions:    options.include_remodel_conditions === true,
+        budget_seeded_at:             firebase.firestore.FieldValue.serverTimestamp(),
+        budget_seeded_count:          count
+      });
+
+      await batch.commit();
+      console.log('[CostCode] Seeded ' + count + ' records into project ' + projectId);
+      return count;
+    } catch (e) {
+      console.error('[CostCode] Seeding failed:', e);
+      return 0;
+    }
+  }
+
+  // ========================================
+  // PROJECT CREATION WIZARD STATE HELPERS
+  // ========================================
+
+  function wizardDefaultState() {
+    return {
+      step: 1,
+      name: '', location: '', clientId: '', startDate: '', estCompletion: '', googleSheetUrl: '',
+      project_type: '',
+      contract_type: 'cost_plus',
+      tier: 'standard',
+      include_remodel_conditions: true,
+      modules: []
+    };
+  }
+
+  function wizardNeedsRemodel() {
+    return wizardState && (wizardState.project_type === 'remodel' || wizardState.project_type === 'addition');
+  }
+
+  function wizardTotalSteps() {
+    return wizardNeedsRemodel() ? 7 : 6;
+  }
+
+  function wizardDisplayStep(step) {
+    // Skips step 4 display count when project type doesn't need remodel conditions
+    if (!wizardNeedsRemodel() && step >= 4) return step - 1;
+    return step;
+  }
+
+  function wizardIsLastStep(step) {
+    return step === 7 || (!wizardNeedsRemodel() && step === 6);
+  }
+
+  function wizardNextStepNum(step) {
+    // Skip step 4 for non-remodel projects
+    if (step === 3 && !wizardNeedsRemodel()) return 5;
+    return step + 1;
+  }
+
+  function wizardPrevStepNum(step) {
+    // Skip step 4 going back for non-remodel projects
+    if (step === 5 && !wizardNeedsRemodel()) return 3;
+    return step - 1;
   }
 
   async function createClientAccount(email, password, name) {
@@ -4986,53 +5176,187 @@
   }
 
   function renderNewProjectModal() {
-    const clients = allUsers.filter(u => u.role === 'client');
+    if (!wizardState) wizardState = wizardDefaultState();
+    var s = wizardState;
+    var step = s.step;
+    var totalSteps = wizardTotalSteps();
+    var displayStep = wizardDisplayStep(step);
+    var isLast = wizardIsLastStep(step);
+    var clients = allUsers.filter(function(u) { return u.role === 'client'; });
+
+    var stepContent = '';
+
+    if (step === 1) {
+      // Step 1: Project basics
+      stepContent = `
+        <div class="wizard-step-title">Project Details</div>
+        <div class="admin-form-row">
+          <div class="admin-form-group admin-form-full">
+            <label>Project Name <span style="color:#A0705A">*</span></label>
+            <input class="admin-input" type="text" id="wName" value="${escapeAttr(s.name)}" placeholder="e.g. The Desert Modern">
+          </div>
+        </div>
+        <div class="admin-form-row">
+          <div class="admin-form-group">
+            <label>Location</label>
+            <input class="admin-input" type="text" id="wLocation" value="${escapeAttr(s.location)}" placeholder="e.g. Bend, OR">
+          </div>
+          <div class="admin-form-group">
+            <label>Assign Client</label>
+            <select class="admin-select" id="wClient">
+              <option value="">— None —</option>
+              ${clients.map(function(u) { return '<option value="' + u.id + '"' + (u.id === s.clientId ? ' selected' : '') + '>' + escapeHtml(u.name) + ' (' + escapeHtml(u.email) + ')</option>'; }).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="admin-form-row">
+          <div class="admin-form-group">
+            <label>Start Date</label>
+            <input class="admin-input" type="date" id="wStartDate" value="${escapeAttr(s.startDate)}">
+          </div>
+          <div class="admin-form-group">
+            <label>Est. Completion</label>
+            <input class="admin-input" type="date" id="wEstCompletion" value="${escapeAttr(s.estCompletion)}">
+          </div>
+        </div>
+        <div class="admin-form-row">
+          <div class="admin-form-group admin-form-full">
+            <label>Google Sheet URL</label>
+            <input class="admin-input" type="url" id="wGoogleSheet" value="${escapeAttr(s.googleSheetUrl)}" placeholder="https://docs.google.com/spreadsheets/d/...">
+          </div>
+        </div>
+      `;
+    } else if (step === 2) {
+      // Step 2: Project type
+      var types = [
+        { value: 'new_build', label: 'New Build', desc: 'Ground-up construction on a cleared site' },
+        { value: 'remodel',   label: 'Remodel',   desc: 'Renovation of an existing structure' },
+        { value: 'addition',  label: 'Addition',  desc: 'Adding square footage to an existing structure' },
+        { value: 'adu',       label: 'ADU / Guest House', desc: 'Accessory dwelling unit, detached or attached' }
+      ];
+      stepContent = '<div class="wizard-step-title">Project Type</div><div class="wizard-choices">';
+      types.forEach(function(t) {
+        var checked = s.project_type === t.value ? ' checked' : '';
+        stepContent += `<label class="wizard-choice${s.project_type === t.value ? ' selected' : ''}">
+          <input type="radio" name="wProjectType" value="${t.value}"${checked}>
+          <span class="wizard-choice-label">${t.label}</span>
+          <span class="wizard-choice-desc">${t.desc}</span>
+        </label>`;
+      });
+      stepContent += '</div>';
+    } else if (step === 3) {
+      // Step 3: Contract type
+      var contracts = [
+        { value: 'cost_plus',   label: 'Cost-Plus',    desc: 'Owner pays actual costs plus your stated fee' },
+        { value: 'fixed_price', label: 'Fixed-Price',  desc: 'Single contract price — you carry all cost risk' },
+        { value: 'gmp',         label: 'GMP',          desc: 'Guaranteed maximum with potential savings split' }
+      ];
+      stepContent = '<div class="wizard-step-title">Contract Type</div><div class="wizard-choices">';
+      contracts.forEach(function(c) {
+        var checked = s.contract_type === c.value ? ' checked' : '';
+        stepContent += `<label class="wizard-choice${s.contract_type === c.value ? ' selected' : ''}">
+          <input type="radio" name="wContractType" value="${c.value}"${checked}>
+          <span class="wizard-choice-label">${c.label}</span>
+          <span class="wizard-choice-desc">${c.desc}</span>
+        </label>`;
+      });
+      stepContent += '</div>';
+    } else if (step === 4) {
+      // Step 4: Remodel conditions (only shown for remodel/addition)
+      stepContent = `
+        <div class="wizard-step-title">Remodel Conditions</div>
+        <div class="wizard-choices">
+          <label class="wizard-choice${s.include_remodel_conditions !== false ? ' selected' : ''}">
+            <input type="radio" name="wRemodelCond" value="yes"${s.include_remodel_conditions !== false ? ' checked' : ''}>
+            <span class="wizard-choice-label">Yes — include remodel codes</span>
+            <span class="wizard-choice-desc">Seeds Category 26: demolition, site protection, hidden conditions allowance, code upgrades, and matching existing conditions.</span>
+          </label>
+          <label class="wizard-choice${s.include_remodel_conditions === false ? ' selected' : ''}">
+            <input type="radio" name="wRemodelCond" value="no"${s.include_remodel_conditions === false ? ' checked' : ''}>
+            <span class="wizard-choice-label">No — skip for this project</span>
+            <span class="wizard-choice-desc">You can add any Category 26 codes manually after setup.</span>
+          </label>
+        </div>
+      `;
+    } else if (step === 5) {
+      // Step 5: Budget detail level
+      var tiers = [
+        { value: 'simple',   label: 'Simple',   count: '79',  desc: 'Category headers + key sub-items. Best for small jobs and quick estimates.' },
+        { value: 'standard', label: 'Standard', count: '253', desc: 'Full sub-code structure. Works for most custom builds and remodels.' },
+        { value: 'detailed', label: 'Detailed', count: '257', desc: 'Everything in Standard plus optional labor-split lines for detailed cost-plus tracking.' }
+      ];
+      var defaultTier = (s.project_type === 'adu' && s.tier === 'standard') ? 'simple' : s.tier;
+      stepContent = '<div class="wizard-step-title">Budget Detail Level</div><div class="wizard-choices">';
+      tiers.forEach(function(t) {
+        var isSelected = defaultTier === t.value;
+        stepContent += `<label class="wizard-choice${isSelected ? ' selected' : ''}">
+          <input type="radio" name="wTier" value="${t.value}"${isSelected ? ' checked' : ''}>
+          <span class="wizard-choice-label">${t.label} <span style="font-weight:400;color:var(--text-secondary);font-size:11px">— ${t.count} lines</span></span>
+          <span class="wizard-choice-desc">${t.desc}</span>
+        </label>`;
+      });
+      stepContent += '</div>';
+    } else if (step === 6) {
+      // Step 6: Specialty modules
+      var modules = [
+        { value: 'pool_spa',        label: 'Pool / Spa' },
+        { value: 'smart_home',      label: 'Smart Home / AV' },
+        { value: 'solar',           label: 'Solar / Battery Storage' },
+        { value: 'generator',       label: 'Generator' },
+        { value: 'landscape',       label: 'Landscape & Irrigation' },
+        { value: 'outdoor_kitchen', label: 'Outdoor Kitchen / Fire Pit' },
+        { value: 'elevator',        label: 'Elevator / Lift' },
+        { value: 'sauna',           label: 'Sauna / Steam' },
+        { value: 'wine_room',       label: 'Wine Room' }
+      ];
+      stepContent = '<div class="wizard-step-title">Specialty Modules</div><p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">Select any that apply. These activate the relevant cost code lines. You can add more after setup.</p><div class="wizard-modules">';
+      modules.forEach(function(m) {
+        var checked = s.modules.indexOf(m.value) !== -1 ? ' checked' : '';
+        stepContent += `<label class="wizard-module${checked ? ' selected' : ''}">
+          <input type="checkbox" name="wModules" value="${m.value}"${checked}>
+          <span>${m.label}</span>
+        </label>`;
+      });
+      stepContent += '</div><p style="font-size:12px;color:var(--text-secondary);margin-top:12px">You can skip this and continue.</p>';
+    } else if (step === 7) {
+      // Step 7: Review
+      var typeLabels = { new_build: 'New Build', remodel: 'Remodel', addition: 'Addition', adu: 'ADU / Guest House' };
+      var contractLabels = { cost_plus: 'Cost-Plus', fixed_price: 'Fixed-Price', gmp: 'GMP' };
+      var tierLabels = { simple: 'Simple (~79 lines)', standard: 'Standard (~253 lines)', detailed: 'Detailed (~257 lines)' };
+      var modLabel = s.modules.length > 0 ? s.modules.map(function(m) { return m.replace(/_/g,' '); }).join(', ') : 'None';
+      stepContent = `
+        <div class="wizard-step-title">Review &amp; Create</div>
+        <div class="wizard-review">
+          <div class="wizard-review-row"><span>Project</span><strong>${escapeHtml(s.name)}${s.location ? ', ' + escapeHtml(s.location) : ''}</strong></div>
+          <div class="wizard-review-row"><span>Type</span><strong>${typeLabels[s.project_type] || s.project_type}</strong></div>
+          <div class="wizard-review-row"><span>Contract</span><strong>${contractLabels[s.contract_type] || s.contract_type}</strong></div>
+          <div class="wizard-review-row"><span>Budget tier</span><strong>${tierLabels[s.tier] || s.tier}</strong></div>
+          ${wizardNeedsRemodel() ? '<div class="wizard-review-row"><span>Remodel codes</span><strong>' + (s.include_remodel_conditions !== false ? 'Included' : 'Skipped') + '</strong></div>' : ''}
+          <div class="wizard-review-row"><span>Modules</span><strong>${modLabel}</strong></div>
+        </div>
+        <p style="font-size:12px;color:var(--text-secondary);margin-top:16px">The budget template will be seeded automatically. You can add, remove, or rename any line after the project is created.</p>
+      `;
+    }
+
     return `
       <div class="modal-overlay active" id="modalOverlay">
-        <div class="modal">
-          <h3>New Project</h3>
-          <form id="newProjectForm">
-            <div class="admin-form-row">
-              <div class="admin-form-group admin-form-full">
-                <label>Project Name</label>
-                <input class="admin-input" type="text" name="name" placeholder="e.g. The Desert Modern" required>
-              </div>
-            </div>
-            <div class="admin-form-row">
-              <div class="admin-form-group">
-                <label>Location</label>
-                <input class="admin-input" type="text" name="location" placeholder="e.g. St. George, UT">
-              </div>
-              <div class="admin-form-group">
-                <label>Assign Client</label>
-                <select class="admin-select" name="clientId">
-                  <option value="">— None —</option>
-                  ${clients.map(u => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.email)})</option>`).join('')}
-                </select>
-              </div>
-            </div>
-            <div class="admin-form-row">
-              <div class="admin-form-group">
-                <label>Start Date</label>
-                <input class="admin-input" type="date" name="startDate">
-              </div>
-              <div class="admin-form-group">
-                <label>Est. Completion</label>
-                <input class="admin-input" type="date" name="estCompletion">
-              </div>
-            </div>
-            <div class="admin-form-row">
-              <div class="admin-form-group admin-form-full">
-                <label>Google Sheet URL</label>
-                <input class="admin-input" type="url" name="googleSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/...">
-              </div>
-            </div>
+        <div class="modal modal-wizard">
+          <div class="wizard-header">
+            <h3>New Project</h3>
+            <span class="wizard-step-counter">Step ${displayStep} of ${totalSteps}</span>
+          </div>
+          <div class="wizard-body">
+            ${stepContent}
             <div class="login-error" id="modalError"></div>
-            <div class="btn-group">
-              <button type="submit" class="btn btn-primary btn-small" id="modalSubmitBtn">Create Project</button>
-              <button type="button" class="btn btn-secondary btn-small" id="cancelModal">Cancel</button>
-            </div>
-          </form>
+          </div>
+          <div class="wizard-footer">
+            ${step > 1 ? '<button class="btn btn-secondary btn-small" id="wizardBack">← Back</button>' : '<span></span>'}
+            <button class="btn btn-secondary btn-small" id="cancelModal">Cancel</button>
+            ${isLast
+              ? '<button class="btn btn-primary btn-small" id="wizardCreate">Create Project</button>'
+              : '<button class="btn btn-primary btn-small" id="wizardNext">Next →</button>'
+            }
+          </div>
         </div>
       </div>
     `;
@@ -5086,6 +5410,7 @@
 
     // New project card
     document.getElementById('newProjectCard')?.addEventListener('click', () => {
+      wizardState = wizardDefaultState();
       showModal = 'newProject';
       render();
     });
@@ -6002,41 +6327,118 @@
     });
 
     // New project form
-    document.getElementById('newProjectForm')?.addEventListener('submit', async function(e) {
-      e.preventDefault();
-      const btn = document.getElementById('modalSubmitBtn');
-      const errEl = document.getElementById('modalError');
+    // ── Wizard navigation ────────────────────────────────────────
+    document.getElementById('wizardNext')?.addEventListener('click', function() {
+      if (!wizardState) return;
+      var s = wizardState;
+      var errEl = document.getElementById('modalError');
+      errEl.textContent = '';
+
+      // Collect current step data before advancing
+      if (s.step === 1) {
+        s.name     = (document.getElementById('wName')?.value || '').trim();
+        s.location = (document.getElementById('wLocation')?.value || '').trim();
+        s.clientId = document.getElementById('wClient')?.value || '';
+        s.startDate      = document.getElementById('wStartDate')?.value || '';
+        s.estCompletion  = document.getElementById('wEstCompletion')?.value || '';
+        s.googleSheetUrl = document.getElementById('wGoogleSheet')?.value || '';
+        if (!s.name) { errEl.textContent = 'Project name is required.'; return; }
+      } else if (s.step === 2) {
+        var pt = document.querySelector('input[name="wProjectType"]:checked');
+        if (!pt) { errEl.textContent = 'Please select a project type.'; return; }
+        s.project_type = pt.value;
+        // ADU defaults to simple tier if not already changed by user
+        if (s.project_type === 'adu' && s.tier === 'standard') s.tier = 'simple';
+        // Reset remodel conditions default based on type
+        s.include_remodel_conditions = (s.project_type === 'remodel' || s.project_type === 'addition');
+      } else if (s.step === 3) {
+        var ct = document.querySelector('input[name="wContractType"]:checked');
+        s.contract_type = ct ? ct.value : 'cost_plus';
+      } else if (s.step === 4) {
+        var rc = document.querySelector('input[name="wRemodelCond"]:checked');
+        s.include_remodel_conditions = !rc || rc.value === 'yes';
+      } else if (s.step === 5) {
+        var tier = document.querySelector('input[name="wTier"]:checked');
+        s.tier = tier ? tier.value : 'standard';
+      } else if (s.step === 6) {
+        var mods = document.querySelectorAll('input[name="wModules"]:checked');
+        s.modules = Array.from(mods).map(function(m) { return m.value; });
+      }
+
+      s.step = wizardNextStepNum(s.step);
+      render();
+    });
+
+    document.getElementById('wizardBack')?.addEventListener('click', function() {
+      if (!wizardState) return;
+      wizardState.step = wizardPrevStepNum(wizardState.step);
+      render();
+    });
+
+    document.getElementById('wizardCreate')?.addEventListener('click', async function() {
+      if (!wizardState) return;
+      var s = wizardState;
+      var btn = document.getElementById('wizardCreate');
+      var errEl = document.getElementById('modalError');
       btn.disabled = true;
       btn.textContent = 'Creating...';
       errEl.textContent = '';
 
-      const fd = new FormData(this);
-      const clientId = fd.get('clientId') || '';
-      let clientName = '';
-      if (clientId) {
-        const c = allUsers.find(u => u.id === clientId);
-        clientName = c ? c.name : '';
-      }
-
       try {
-        await createProject({
-          name: fd.get('name'),
-          location: fd.get('location') || '',
-          clientId: clientId,
-          clientName: clientName,
-          startDate: fd.get('startDate') || '',
-          estCompletion: fd.get('estCompletion') || '',
-          googleSheetUrl: fd.get('googleSheetUrl') || ''
+        // Resolve client name
+        var clientName = '';
+        if (s.clientId) {
+          var c = allUsers.find(function(u) { return u.id === s.clientId; });
+          clientName = c ? c.name : '';
+        }
+
+        // Create the project document
+        var projectId = await createProject({
+          name:           s.name,
+          location:       s.location,
+          clientId:       s.clientId,
+          clientName:     clientName,
+          startDate:      s.startDate,
+          estCompletion:  s.estCompletion,
+          googleSheetUrl: s.googleSheetUrl
         });
+
+        // Seed the budget template
+        btn.textContent = 'Seeding budget...';
+        var seeded = await seedProjectBudget(projectId, {
+          tier:                       s.tier,
+          project_type:               s.project_type,
+          contract_type:              s.contract_type,
+          modules:                    s.modules,
+          include_remodel_conditions: s.include_remodel_conditions
+        });
+
         await refreshAdminData();
         showModal = null;
-        showToast('Project created.');
+        wizardState = null;
+        showToast('Project created. ' + seeded + ' budget lines seeded.');
         render();
       } catch (err) {
         errEl.textContent = err.message;
         btn.disabled = false;
         btn.textContent = 'Create Project';
       }
+    });
+
+    // Radio/checkbox click-to-select visual update within wizard
+    document.querySelectorAll('.wizard-choice input[type="radio"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        var group = this.closest('.wizard-choices');
+        if (group) {
+          group.querySelectorAll('.wizard-choice').forEach(function(c) { c.classList.remove('selected'); });
+          this.closest('.wizard-choice')?.classList.add('selected');
+        }
+      });
+    });
+    document.querySelectorAll('.wizard-module input[type="checkbox"]').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        this.closest('.wizard-module')?.classList.toggle('selected', this.checked);
+      });
     });
   }
 
@@ -6398,8 +6800,9 @@
           await refreshAdminData();
           appState = 'admin';
           // Auto-migrate existing admins: ensure settings/portal is marked initialized.
-          // This handles accounts created before this flag existed.
           db.collection('settings').doc('portal').set({ adminInitialized: true }, { merge: true }).catch(() => {});
+          // Auto-upload cost code template if not already in Firestore
+          ensureCostCodeTemplate().catch(() => {});
         } else if (userProfile.role === 'employee') {
           // Employee — load all projects, filter to assigned
           await loadAllProjects();
