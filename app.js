@@ -2431,6 +2431,7 @@
       ${renderProjectOverview(project, cp, cpNum, cpDef)}
       ${renderDashboardFinances()}
       ${renderVisualTimeline(project)}
+      ${renderTimeline(project)}
       ${renderDashboardFieldNotes()}
     `;
   }
