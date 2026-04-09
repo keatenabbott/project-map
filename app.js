@@ -2827,7 +2827,18 @@
         invoiceListHtml += '</div>';
       });
     }
-    var hasInvoices = invoiceListHtml.length > 0;
+    // Build the invoice section once — always shown, clean when empty
+    var invoiceSectionHtml = '<div class="finances-section">';
+    invoiceSectionHtml += '<div class="finances-section-label">Invoices</div>';
+    if (invoicesLoading) {
+      invoiceSectionHtml += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices…</span></div>';
+    } else if (currentInvoices.length === 0) {
+      invoiceSectionHtml += '<p class="finances-empty-note">No invoices on file yet. Your builder will add them here when billing begins.</p>';
+    } else {
+      invoiceSectionHtml += renderInvoicesSummaryBar();
+      invoiceSectionHtml += invoiceListHtml;
+    }
+    invoiceSectionHtml += '</div>';
 
     // ── BUDGET OVERVIEW (always first) ──────────────────────────────────
     html += '<div class="finances-section">';
@@ -2850,14 +2861,7 @@
         }
         html += renderBudgetSummary(false);
         html += '</div>'; // close Budget Overview section
-        // ── INVOICES (only when present) ──────────────────────────────────────────
-        if (hasInvoices) {
-          html += '<div class="finances-section">';
-          html += '<div class="finances-section-label">Invoices</div>';
-          html += renderInvoicesSummaryBar();
-          html += invoiceListHtml;
-          html += '</div>';
-        }
+        html += invoiceSectionHtml;
         // ── BUDGET BREAKDOWN ─────────────────────────────────────────────────────
         html += '<div class="finances-section">';
         html += '<div class="finances-section-label">Budget Breakdown</div>';
@@ -2901,18 +2905,12 @@
       if (firestoreBudgetLoading) {
         html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading budget…</span></div>';
         html += '</div>';
-        if (hasInvoices) {
-          html += '<div class="finances-section"><div class="finances-section-label">Invoices</div>';
-          html += renderInvoicesSummaryBar() + invoiceListHtml + '</div>';
-        }
+        html += invoiceSectionHtml;
       } else if (firestoreBudgetItems.length === 0) {
         html += '<div class="empty-state"><div class="empty-state-icon">\ud83d\udcca</div><div class="empty-state-title">Budget Coming Soon</div>';
         html += '<div class="empty-state-message">Your builder will add budget details here as the project progresses.</div></div>';
         html += '</div>';
-        if (hasInvoices) {
-          html += '<div class="finances-section"><div class="finances-section-label">Invoices</div>';
-          html += renderInvoicesSummaryBar() + invoiceListHtml + '</div>';
-        }
+        html += invoiceSectionHtml;
       } else {
         // Schema-agnostic — works for both old (camelCase) and new (snake_case) seeded items
         var isNew = firestoreBudgetItems.length > 0 && firestoreBudgetItems[0].cost_code !== undefined;
@@ -2926,14 +2924,7 @@
         html += '<div class="budget-progress-label">' + pctSpent.toFixed(1) + '% of budget spent</div>';
         html += '</div></div>';
         html += '</div>'; // close Budget Overview section
-        // ── INVOICES (only when present) ──────────────────────────────────────────
-        if (hasInvoices) {
-          html += '<div class="finances-section">';
-          html += '<div class="finances-section-label">Invoices</div>';
-          html += renderInvoicesSummaryBar();
-          html += invoiceListHtml;
-          html += '</div>';
-        }
+        html += invoiceSectionHtml;
         // ── BUDGET BREAKDOWN ─────────────────────────────────────────────────────
         html += '<div class="finances-section">';
         html += '<div class="finances-section-label">Budget Breakdown</div>';

@@ -4606,3 +4606,10 @@ details[open] .finances-details-summary::before { content: '−'; }
   letter-spacing: 0.08em;
   margin-top: 6px;
 }
+
+.finances-empty-note {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+  margin: 0;
+}
