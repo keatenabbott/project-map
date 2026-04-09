@@ -2429,6 +2429,7 @@
       ${heroHtml}
       ${renderActionNeeded()}
       ${renderProjectOverview(project, cp, cpNum, cpDef)}
+      ${renderDashboardFinances()}
       ${renderVisualTimeline(project)}
       ${renderDashboardFieldNotes()}
     `;
@@ -2455,6 +2456,65 @@
       items += '</button>';
     }
     return '<div class="action-needed">' + items + '</div>';
+  }
+
+  function renderDashboardFinances() {
+    // Uses invoices + COs pre-loaded at login — no extra Firestore call needed
+    var invoices = currentInvoices || [];
+    var cos = currentChangeOrders || [];
+    if (invoices.length === 0 && cos.length === 0) return '';
+
+    var totalInvoiced = 0, totalPaid = 0, totalOutstanding = 0;
+    invoices.forEach(function(inv) {
+      var amt = Number(inv.amount) || 0;
+      totalInvoiced += amt;
+      if (inv.status === 'paid') totalPaid += amt;
+      else if (inv.status !== 'void') totalOutstanding += amt;
+    });
+
+    var approvedCOImpact = 0;
+    cos.forEach(function(co) {
+      if (co.status === 'approved') approvedCOImpact += Number(co.costImpact) || 0;
+    });
+
+    var items = '';
+
+    if (invoices.length > 0) {
+      items += '<div class="dash-fin-item">';
+      items += '<span class="dash-fin-label">Total Invoiced</span>';
+      items += '<span class="dash-fin-value">' + formatCurrency(totalInvoiced) + '</span>';
+      items += '</div>';
+
+      items += '<div class="dash-fin-item">';
+      items += '<span class="dash-fin-label">Paid to Date</span>';
+      items += '<span class="dash-fin-value dash-fin-paid">' + formatCurrency(totalPaid) + '</span>';
+      items += '</div>';
+
+      if (totalOutstanding > 0) {
+        items += '<div class="dash-fin-item">';
+        items += '<span class="dash-fin-label">Outstanding</span>';
+        items += '<span class="dash-fin-value dash-fin-owed">' + formatCurrency(totalOutstanding) + '</span>';
+        items += '</div>';
+      }
+    }
+
+    if (approvedCOImpact !== 0) {
+      var coSign = approvedCOImpact > 0 ? '+' : '';
+      items += '<div class="dash-fin-item">';
+      items += '<span class="dash-fin-label">Approved Changes</span>';
+      items += '<span class="dash-fin-value' + (approvedCOImpact > 0 ? ' dash-fin-positive' : ' dash-fin-negative') + '">' + coSign + formatCurrency(approvedCOImpact) + '</span>';
+      items += '</div>';
+    }
+
+    if (!items) return '';
+
+    return '<div class="dash-finances">'
+      + '<div class="dash-finances-header">'
+      + '<span class="dash-finances-title">Finances</span>'
+      + '<button class="dash-finances-link" data-client-nav="finances">View details →</button>'
+      + '</div>'
+      + '<div class="dash-finances-items">' + items + '</div>'
+      + '</div>';
   }
 
   function renderDashboardFieldNotes() {
@@ -2510,7 +2570,6 @@
             <span class="project-meta-value">${getProjectProgress(project)}%</span>
           </div>
         </div>
-        ${renderMiniTimeline(project)}
       </div>
     `;
   }
