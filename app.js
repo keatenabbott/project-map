@@ -1967,7 +1967,6 @@
             <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
             <button type="button" class="login-forgot" id="forgotBtn">Forgot password?</button>
           </form>
-          <button type="button" class="login-setup-link" id="setupLink">First time setup</button>
         </div>
       </div>
     `;
@@ -2000,10 +1999,6 @@
       render();
     });
 
-    document.getElementById('setupLink').addEventListener('click', () => {
-      appState = 'setup';
-      render();
-    });
   }
 
   // ========================================
