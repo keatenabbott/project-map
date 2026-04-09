@@ -657,11 +657,11 @@
 
   async function checkFirstRun() {
     try {
-      const usersSnap = await db.collection('users').limit(1).get();
-      return usersSnap.empty;
+      const adminSnap = await db.collection('users').where('role', '==', 'admin').limit(1).get();
+      return adminSnap.empty; // Only show setup if NO admin exists
     } catch (e) {
       console.error('Error checking first run:', e);
-      return true; // Default to setup if we can't check
+      return false; // Default to LOGIN (not setup) if Firestore is slow or errors
     }
   }
 
