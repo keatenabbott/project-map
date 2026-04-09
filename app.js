@@ -2197,7 +2197,7 @@
     return `
       <div class="dashboard-fieldnotes">
         <div class="dashboard-fieldnotes-header">
-          <div class="dashboard-fieldnotes-title">Recent Field Notes</div>
+          <div class="dashboard-fieldnotes-title">Recent Updates</div>
           <button class="dashboard-fieldnotes-viewall" id="viewAllFieldNotesBtn">View all →</button>
         </div>
         ${itemsHtml}
