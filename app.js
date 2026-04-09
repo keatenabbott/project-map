@@ -1967,6 +1967,7 @@
             <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
             <button type="button" class="login-forgot" id="forgotBtn">Forgot password?</button>
           </form>
+          <button type="button" class="login-setup-link" id="setupLink">First time setup</button>
         </div>
       </div>
     `;
@@ -1996,6 +1997,11 @@
 
     document.getElementById('forgotBtn').addEventListener('click', () => {
       appState = 'forgot';
+      render();
+    });
+
+    document.getElementById('setupLink').addEventListener('click', () => {
+      appState = 'setup';
       render();
     });
   }
@@ -6244,18 +6250,9 @@
       currentUser = null;
       userProfile = null;
 
-      // Check settings/portal (publicly readable) instead of querying the
-      // protected users collection — avoids a Firestore permissions error.
-      let adminInitialized = false;
-      try {
-        const portalDoc = await db.collection('settings').doc('portal').get();
-        adminInitialized = portalDoc.exists && portalDoc.data().adminInitialized === true;
-      } catch (e) {
-        console.warn('Could not check admin status, defaulting to setup:', e);
-        adminInitialized = false;
-      }
-      appState = adminInitialized ? 'login' : 'setup';
-
+      // Always show login for unauthenticated users.
+      // Setup is only accessible via the link on the login page (first-time installs only).
+      appState = 'login';
       render();
     }
   });
