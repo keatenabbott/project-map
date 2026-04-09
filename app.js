@@ -76,6 +76,7 @@
   let wizardState = null;       // multi-step new-project wizard state
   let budgetCategoryOpen = {};  // { '01': true, '05': false } — template budget expand state
   let budgetSaveTimer = null;   // debounce handle for budget input saves
+  let budgetLoadedForProject = null; // tracks which projectId has been loaded into firestoreBudgetItems
   let budgetEditingLine = null; // id of line currently in edit mode
   let budgetAddingToCategory = null; // catCode where the add-line form is open
   let cachedTemplate = null;    // master template codes loaded from Firestore for restore
@@ -1250,14 +1251,23 @@
     firestoreBudgetLoading = true;
     render();
     try {
+      // No orderBy — new schema uses sort_order (snake_case), old schema uses sortOrder (camelCase).
+      // Firestore orderBy silently excludes docs missing the field, so we sort in JS instead.
       const snap = await db.collection('projects').doc(projectId)
-        .collection('budgetItems').orderBy('sortOrder', 'asc').get();
+        .collection('budgetItems').get();
       firestoreBudgetItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Sort: new schema by sort_order, old schema by sortOrder
+      firestoreBudgetItems.sort(function(a, b) {
+        var sa = a.sort_order !== undefined ? a.sort_order : (a.sortOrder || 0);
+        var sb = b.sort_order !== undefined ? b.sort_order : (b.sortOrder || 0);
+        return sa - sb;
+      });
     } catch (err) {
       console.error('Error loading budget items:', err);
       firestoreBudgetItems = [];
     }
     firestoreBudgetLoading = false;
+    budgetLoadedForProject = projectId;
     render();
   }
 
@@ -6184,6 +6194,7 @@
         adminView = 'detail';
         adminDetailTab = 'details';
         firestoreBudgetItems = [];
+        budgetLoadedForProject = null;
         currentMessages = [];
         render();
       });
@@ -6196,6 +6207,7 @@
         adminView = 'detail';
         adminDetailTab = 'details';
         firestoreBudgetItems = [];
+        budgetLoadedForProject = null;
         currentMessages = [];
         render();
       });
@@ -6491,8 +6503,8 @@
       bindAdminBudgetEvents();
       var curProject = allProjects.find(function(p){ return p.id === adminSelectedProject; });
       if (curProject && isTemplatedProject(curProject)) {
-        // Trigger load if budget items not yet fetched for this project
-        if (firestoreBudgetItems.length === 0 && !firestoreBudgetLoading) {
+        // Trigger load if we haven't loaded for this specific project yet
+        if (budgetLoadedForProject !== adminSelectedProject && !firestoreBudgetLoading) {
           loadBudgetItems(adminSelectedProject);
         }
         bindTemplateBudgetEvents(adminSelectedProject);
