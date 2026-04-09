@@ -689,7 +689,8 @@
         tableLineWidth: 0.1,
         didParseCell: function(data) {
           if (data.section === 'body' && data.column.index === 3) {
-            var val = (data.cell.raw || '').toLowerCase();
+            var raw = data.cell.raw;
+            var val = typeof raw === 'string' ? raw.toLowerCase() : '';
             if (val === 'approved') { data.cell.styles.textColor = [6, 95, 70]; data.cell.styles.fontStyle = 'bold'; }
             else if (val === 'denied') { data.cell.styles.textColor = [153, 27, 27]; data.cell.styles.fontStyle = 'bold'; }
             else { data.cell.styles.textColor = [146, 64, 14]; }
