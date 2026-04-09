@@ -6491,6 +6491,10 @@
       bindAdminBudgetEvents();
       var curProject = allProjects.find(function(p){ return p.id === adminSelectedProject; });
       if (curProject && isTemplatedProject(curProject)) {
+        // Trigger load if budget items not yet fetched for this project
+        if (firestoreBudgetItems.length === 0 && !firestoreBudgetLoading) {
+          loadBudgetItems(adminSelectedProject);
+        }
         bindTemplateBudgetEvents(adminSelectedProject);
       }
     }
