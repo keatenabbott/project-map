@@ -2428,8 +2428,10 @@
     return `
       ${heroHtml}
       ${renderActionNeeded()}
-      ${renderProjectOverview(project, cp, cpNum, cpDef)}
-      ${renderDashboardFinances()}
+      <div class="dashboard-top-grid">
+        ${renderProjectOverview(project, cp, cpNum, cpDef)}
+        ${renderDashboardFinances()}
+      </div>
       ${renderVisualTimeline(project)}
       ${renderTimeline(project)}
       ${renderDashboardFieldNotes()}

@@ -127,7 +127,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .main-content {
   flex: 1;
-  padding: 48px 40px 80px;
+  padding: 32px 40px 80px;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
@@ -376,13 +376,25 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-secondary);
 }
 
+/* Dashboard 2-column top grid */
+.dashboard-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .dashboard-top-grid { grid-template-columns: 1fr; }
+}
+
 /* Project Overview Card */
 .project-overview {
-  padding: 32px;
+  padding: 28px 32px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 2px;
-  margin-bottom: 56px;
+  border-radius: 10px;
+  margin-bottom: 0;
 }
 
 .project-overview-header {
@@ -4510,7 +4522,7 @@ details[open] .finances-details-summary::before { content: '−'; }
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 20px 24px;
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 .dash-finances-header {
   display: flex;
