@@ -74,6 +74,8 @@
   let clientView = 'dashboard'; // dashboard | budget | photos | documents | selections | updates
   let showModal = null;         // null | 'addClient' | 'newProject' | 'editProject' | 'addEmployee'
   let wizardState = null;       // multi-step new-project wizard state
+  let budgetCategoryOpen = {};  // { '01': true, '05': false } — template budget expand state
+  let budgetSaveTimer = null;   // debounce handle for budget input saves
   let editProjectData = null;
 
   // Admin detail sub-tab
@@ -2554,9 +2556,10 @@
         html += '<div class="empty-state"><div class="empty-state-icon">\ud83d\udcca</div><div class="empty-state-title">Budget Coming Soon</div>';
         html += '<div class="empty-state-message">Your builder will add budget details here as the project progresses.</div></div>';
       } else {
-        var totals = getFirestoreBudgetTotals();
+        // Schema-agnostic — works for both old (camelCase) and new (snake_case) seeded items
+        var isNew = firestoreBudgetItems.length > 0 && firestoreBudgetItems[0].cost_code !== undefined;
+        var totals = isNew ? getTemplatedBudgetTotals() : getFirestoreBudgetTotals();
         var pctSpent = totals.budget > 0 ? Math.min(100, (totals.actual / totals.budget) * 100) : 0;
-        var grouped = groupBudgetItemsByCategory();
         html += '<div class="budget-summary"><div class="budget-summary-main"><div class="budget-summary-amounts">';
         html += '<div class="budget-amount-block"><span class="budget-amount-label">Total Budget</span><span class="budget-amount-value">' + formatCurrency(totals.budget) + '</span></div>';
         html += '<div class="budget-amount-block"><span class="budget-amount-label">Total Spent</span><span class="budget-amount-value spent">' + formatCurrency(totals.actual) + '</span></div>';
@@ -2569,32 +2572,40 @@
         html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
         html += '</tr></thead><tbody>';
         var grandBudgetF = 0, grandActualF = 0;
-        Object.keys(grouped).forEach(function(catName, catIndex) {
-          var items = grouped[catName];
+        // Group using schema-agnostic helpers
+        var grouped2 = {};
+        firestoreBudgetItems.forEach(function(it) {
+          if (isNew && !it.parent_code) return; // skip category headers in new schema
+          var cat = itemCatName(it) || 'Other';
+          if (!grouped2[cat]) grouped2[cat] = [];
+          grouped2[cat].push(it);
+        });
+        Object.keys(grouped2).forEach(function(catName, catIndex) {
+          var items = grouped2[catName];
           var catBudget = 0, catActual = 0;
-          items.forEach(function(it) { catBudget += Number(it.budgetAmount) || 0; catActual += Number(it.actualAmount) || 0; });
+          items.forEach(function(it) { catBudget += budgetAmt(it); catActual += actualAmt(it); });
           var catVariance = catBudget - catActual;
           var catVarClass = catVariance < 0 ? 'variance-over' : 'variance-under';
           var allComplete = items.every(function(it) { return it.status === 'complete'; });
           var catBadge = allComplete && items.length > 0
             ? '<span class="budget-status-badge budget-status-complete">Complete</span>'
             : (catActual > 0 ? '<span class="budget-status-badge budget-status-in-progress">In Progress</span>' : '');
-          var isOpen = budgetExpandedCategories[catIndex] === true;
+          var isOp = budgetExpandedCategories[catIndex] === true;
           html += '<tr class="budget-row-category" data-budget-cat="' + catIndex + '">';
-          html += '<td><span class="budget-category-toggle ' + (isOpen ? 'open' : '') + '">&#9654;</span>' + escapeHtml(catName) + '</td>';
+          html += '<td><span class="budget-category-toggle ' + (isOp ? 'open' : '') + '">&#9654;</span>' + escapeHtml(catName) + '</td>';
           html += '<td>' + formatCurrency(catBudget) + '</td><td>' + formatCurrency(catActual) + '</td>';
           html += '<td class="' + catVarClass + '">' + formatCurrency(catVariance) + '</td><td>' + catBadge + '</td></tr>';
           items.forEach(function(item) {
-            var b = Number(item.budgetAmount) || 0, a = Number(item.actualAmount) || 0, v = b - a;
+            var b = budgetAmt(item), a = actualAmt(item), v = b - a;
             var vClass = v < 0 ? 'variance-over' : 'variance-under';
             var iBadge = item.status === 'complete' ? '<span class="budget-status-badge budget-status-complete">Complete</span>' : '';
-            html += '<tr class="budget-row-sub ' + (isOpen ? 'expanded' : '') + '" data-budget-cat-child="' + catIndex + '">';
-            html += '<td>' + escapeHtml(item.costCode) + (item.vendor ? '<br><span style="color:var(--text-tertiary);font-size:11px">' + escapeHtml(item.vendor) + '</span>' : '') + '</td>';
+            html += '<tr class="budget-row-sub ' + (isOp ? 'expanded' : '') + '" data-budget-cat-child="' + catIndex + '">';
+            html += '<td>' + escapeHtml(itemCode(item)) + (item.vendor ? '<br><span style="color:var(--text-tertiary);font-size:11px">' + escapeHtml(item.vendor) + '</span>' : '') + '</td>';
             html += '<td>' + formatCurrency(b) + '</td><td>' + formatCurrency(a) + '</td>';
             html += '<td class="' + vClass + '">' + formatCurrency(v) + '</td><td>' + iBadge + '</td></tr>';
           });
           var tvClass = catVariance < 0 ? 'variance-over' : 'variance-under';
-          html += '<tr class="budget-row-total ' + (isOpen ? 'expanded' : '') + '" data-budget-cat-child="' + catIndex + '">';
+          html += '<tr class="budget-row-total ' + (isOp ? 'expanded' : '') + '" data-budget-cat-child="' + catIndex + '">';
           html += '<td style="padding-left:40px;font-weight:600;">TOTAL</td>';
           html += '<td>' + formatCurrency(catBudget) + '</td><td>' + formatCurrency(catActual) + '</td>';
           html += '<td class="' + tvClass + '">' + formatCurrency(catVariance) + '</td><td></td></tr>';
@@ -3669,6 +3680,181 @@
     return html;
   }
 
+  // ========================================
+  // SCHEMA-AGNOSTIC BUDGET HELPERS
+  // Works for both old (camelCase) and new (snake_case) budget items
+  // ========================================
+
+  function budgetAmt(item)  { return Number(item.budget_amount  !== undefined ? item.budget_amount  : item.budgetAmount)  || 0; }
+  function actualAmt(item)  { return Number(item.actual_amount  !== undefined ? item.actual_amount  : item.actualAmount)  || 0; }
+  function itemCode(item)   { return item.cost_code   || item.costCode   || ''; }
+  function itemName(item)   { return item.name        || item.costCode   || ''; }
+  function itemCatName(item){ return item.top_level_name || item.category || ''; }
+  function isNewSchema(item){ return item.cost_code   !== undefined; }
+  function isTemplatedProject(project) {
+    return project && project.budget_template_version === 'master_v1';
+  }
+
+  // ========================================
+  // TEMPLATE BUDGET — GROUPING & TOTALS
+  // ========================================
+
+  function getTemplatedBudgetTotals() {
+    var budget = 0, actual = 0;
+    (firestoreBudgetItems || []).forEach(function(item) {
+      // Only sum sub-codes (not category headers)
+      if (item.parent_code !== null && item.parent_code !== undefined) {
+        budget += budgetAmt(item);
+        actual += actualAmt(item);
+      }
+    });
+    return { budget: budget, actual: actual, variance: budget - actual };
+  }
+
+  function groupTemplatedBudget() {
+    // Returns ordered array of { catCode, catName, header, active[], inactive[] }
+    var groups = {};
+    (firestoreBudgetItems || []).forEach(function(item) {
+      var cat = item.top_level_category || '00';
+      if (!groups[cat]) groups[cat] = { catCode: cat, catName: item.top_level_name || cat, header: null, active: [], inactive: [] };
+      if (!item.parent_code) {
+        groups[cat].header = item;
+      } else if (item.active === false) {
+        groups[cat].inactive.push(item);
+      } else {
+        groups[cat].active.push(item);
+      }
+    });
+    // Sort by category code numerically
+    return Object.keys(groups).sort(function(a,b){ return parseInt(a,10)-parseInt(b,10); }).map(function(k){ return groups[k]; });
+  }
+
+  // ========================================
+  // TEMPLATE BUDGET ADMIN VIEW
+  // ========================================
+
+  function renderTemplateBudgetLine(item, inactive) {
+    var b  = budgetAmt(item);
+    var a  = actualAmt(item);
+    var v  = b - a;
+    var vc = v < 0 ? 'variance-over' : (b > 0 ? 'variance-under' : '');
+    var st = item.status || 'not_started';
+    var statuses = [['not_started','Not Started'],['in_progress','In Progress'],['complete','Complete'],['on_hold','On Hold'],['excluded','Excluded']];
+    var selHtml = '<select class="tbudget-status" data-budget-item-status="' + item.id + '">';
+    statuses.forEach(function(s){ selHtml += '<option value="'+s[0]+'"'+(s[0]===st?' selected':'')+'>'+s[1]+'</option>'; });
+    selHtml += '</select>';
+    var helpIcon = item.help_text ? ' <span class="tbudget-help" title="'+escapeAttr(item.help_text)+'">?</span>' : '';
+    var inactiveBadge = inactive ? '<span class="tbudget-inactive-badge">Optional</span>' : '';
+    return '<div class="tbudget-line'+(inactive?' inactive':'')+'">'
+      + '<span class="tbudget-line-code">'+escapeHtml(item.cost_code)+'</span>'
+      + '<span class="tbudget-line-name">'+escapeHtml(item.name)+helpIcon+inactiveBadge+'</span>'
+      + '<span class="tbudget-line-budget"><input type="number" class="tbudget-input" data-budget-field="budget_amount" data-budget-item="'+item.id+'" value="'+(b||'')+'" placeholder="—" min="0" step="1"></span>'
+      + '<span class="tbudget-line-actual"><input type="number" class="tbudget-input" data-budget-field="actual_amount" data-budget-item="'+item.id+'" value="'+(a||'')+'" placeholder="—" min="0" step="1"></span>'
+      + '<span class="tbudget-line-variance '+vc+'">'+(b>0||a>0 ? formatCurrency(v) : '—')+'</span>'
+      + '<span class="tbudget-line-status">'+selHtml+'</span>'
+      + '</div>';
+  }
+
+  function renderTemplateBudgetAdmin(project) {
+    var groups = groupTemplatedBudget();
+    var totals  = getTemplatedBudgetTotals();
+    var pct     = totals.budget > 0 ? Math.min(100, (totals.actual / totals.budget) * 100) : 0;
+
+    if (!groups.length) {
+      return '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading budget…</span></div>';
+    }
+
+    var html = '';
+
+    // ── Summary bar ────────────────────────────────────────────────────────────────
+    html += '<div class="budget-summary" style="margin-bottom:24px">'
+      + '<div class="budget-summary-main" style="margin-bottom:0;padding-bottom:0;border-bottom:none">'
+      + '<div class="budget-summary-amounts">'
+      + '<div class="budget-amount-block"><span class="budget-amount-label">Total Budget</span><span class="budget-amount-value" id="tbudget-total-budget">'+formatCurrency(totals.budget)+'</span></div>'
+      + '<div class="budget-amount-block"><span class="budget-amount-label">Total Spent</span><span class="budget-amount-value spent" id="tbudget-total-actual">'+formatCurrency(totals.actual)+'</span></div>'
+      + '<div class="budget-amount-block"><span class="budget-amount-label">Remaining</span><span class="budget-amount-value remaining" id="tbudget-total-variance"'+(totals.variance<0?' style="color:#A0705A"':'')+'>'+formatCurrency(totals.variance)+'</span></div>'
+      + '</div>'
+      + '<div class="budget-progress-bar" style="margin-top:16px"><div class="budget-progress-fill" id="tbudget-progress-fill" style="width:'+pct.toFixed(1)+'%;'+(pct>100?'background:#A0705A':'')+'"></div></div>'
+      + '<div class="budget-progress-label" id="tbudget-progress-label">'+pct.toFixed(1)+'% of budget spent</div>'
+      + '</div></div>';
+
+    // ── Info bar ───────────────────────────────────────────────────────────────────
+    var tier = project.budget_tier || 'standard';
+    var ptype = project.budget_project_type || '';
+    var ctype = project.budget_contract_type || '';
+    var tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+    var ptypeLabel = { new_build:'New Build', remodel:'Remodel', addition:'Addition', adu:'ADU' }[ptype] || ptype;
+    var ctypeLabel = { cost_plus:'Cost-Plus', fixed_price:'Fixed-Price', gmp:'GMP' }[ctype] || ctype;
+    html += '<div class="tbudget-info-bar">'
+      + '<span>Template: <strong>'+tierLabel+'</strong></span>'
+      + '<span>Type: <strong>'+ptypeLabel+'</strong></span>'
+      + '<span>Contract: <strong>'+ctypeLabel+'</strong></span>'
+      + '<span><strong>'+firestoreBudgetItems.length+'</strong> lines loaded</span>'
+      + '</div>';
+
+    // ── Column headers ─────────────────────────────────────────────────────────────────
+    html += '<div class="tbudget-col-headers">'
+      + '<span>Code</span><span>Description</span><span>Budget ($)</span><span>Actual ($)</span><span>Variance</span><span>Status</span>'
+      + '</div>';
+
+    // ── Category rows ─────────────────────────────────────────────────────────────────
+    html += '<div class="tbudget-list">';
+
+    groups.forEach(function(grp) {
+      var isOpen     = budgetCategoryOpen[grp.catCode] === true;
+      var optOpen    = budgetCategoryOpen[grp.catCode + '_opt'] === true;
+      var allLines   = grp.active.concat(grp.inactive);
+      var catBudget  = allLines.reduce(function(s,i){ return s + budgetAmt(i); }, 0);
+      var catActual  = allLines.reduce(function(s,i){ return s + actualAmt(i); }, 0);
+      var catVariance = catBudget - catActual;
+      var vc = catVariance < 0 ? 'variance-over' : (catBudget > 0 ? 'variance-under' : '');
+
+      html += '<div class="tbudget-category">';
+
+      // Category header row
+      html += '<div class="tbudget-cat-header" data-toggle-cat="'+grp.catCode+'">'
+        + '<div class="tbudget-cat-left">'
+        + '<span class="tbudget-cat-chevron">'+(isOpen?'▼':'▶')+'</span>'
+        + '<span class="tbudget-cat-code">'+grp.catCode+'</span>'
+        + '<span class="tbudget-cat-name">'+escapeHtml(grp.catName)+'</span>'
+        + '<span class="tbudget-cat-count">'+(grp.active.length+grp.inactive.length)+' lines'+(grp.inactive.length?' ('+grp.inactive.length+' optional)':'')+'</span>'
+        + '</div>'
+        + '<div class="tbudget-cat-right">'
+        + '<span class="tbudget-cat-budget">'+(catBudget>0?formatCurrency(catBudget):'—')+'</span>'
+        + '<span class="tbudget-cat-actual">'+(catActual>0?formatCurrency(catActual):'—')+'</span>'
+        + '<span class="tbudget-cat-variance '+vc+'">'+(catBudget>0||catActual>0?formatCurrency(catVariance):'—')+'</span>'
+        + '</div>'
+        + '</div>';
+
+      if (isOpen) {
+        html += '<div class="tbudget-lines">';
+
+        // Active lines
+        grp.active.forEach(function(item) {
+          html += renderTemplateBudgetLine(item, false);
+        });
+
+        // Optional / inactive lines
+        if (grp.inactive.length) {
+          html += '<div class="tbudget-optional-toggle" data-toggle-cat="'+grp.catCode+'_opt">'
+            + (optOpen?'▼':'▶')+' Optional lines ('+grp.inactive.length+')</div>';
+          if (optOpen) {
+            grp.inactive.forEach(function(item) {
+              html += renderTemplateBudgetLine(item, true);
+            });
+          }
+        }
+
+        html += '</div>'; // .tbudget-lines
+      }
+
+      html += '</div>'; // .tbudget-category
+    });
+
+    html += '</div>'; // .tbudget-list
+    return html;
+  }
+
   function renderAdminBudgetTab(project) {
     const hasSheet = project && project.googleSheetUrl && extractSheetId(project.googleSheetUrl);
 
@@ -3677,7 +3863,15 @@
       return renderSheetModeBudgetAdmin(project);
     }
 
-    // ── PORTAL EDITOR MODE ──────────────────────────────────────
+    // ── TEMPLATE BUDGET MODE (seeded from master template) ──────
+    if (isTemplatedProject(project)) {
+      if (firestoreBudgetLoading) {
+        return '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading budget…</span></div>';
+      }
+      return renderTemplateBudgetAdmin(project);
+    }
+
+    // ── LEGACY PORTAL EDITOR MODE ───────────────────────────────
     if (firestoreBudgetLoading) {
       return '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading budget data...</span></div>';
     }
@@ -5696,6 +5890,10 @@
     // Admin budget events
     if (adminView === 'detail' && adminDetailTab === 'budget') {
       bindAdminBudgetEvents();
+      var curProject = allProjects.find(function(p){ return p.id === adminSelectedProject; });
+      if (curProject && isTemplatedProject(curProject)) {
+        bindTemplateBudgetEvents(adminSelectedProject);
+      }
     }
 
     // Admin photos events
@@ -5749,6 +5947,83 @@
 
     // Budget item modal events
     bindBudgetModalEvents();
+  }
+
+  // ========================================
+  // TEMPLATE BUDGET EVENT BINDING
+  // ========================================
+  function bindTemplateBudgetEvents(projectId) {
+
+    // Expand / collapse categories
+    document.querySelectorAll('[data-toggle-cat]').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        // Don't trigger if clicking inside an input or select
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        var cat = this.dataset.toggleCat;
+        budgetCategoryOpen[cat] = !budgetCategoryOpen[cat];
+        render();
+      });
+    });
+
+    // Inline budget / actual inputs — save on blur, update summary live
+    document.querySelectorAll('.tbudget-input').forEach(function(input) {
+      // Prevent category toggle from firing when clicking input
+      input.addEventListener('click', function(e) { e.stopPropagation(); });
+
+      input.addEventListener('change', function() {
+        var itemId = this.dataset.budgetItem;
+        var field  = this.dataset.budgetField;
+        var value  = this.value !== '' ? parseFloat(this.value) : null;
+
+        // Optimistic in-memory update
+        var item = firestoreBudgetItems.find(function(i) { return i.id === itemId; });
+        if (item) item[field] = value;
+
+        // Update summary bar numbers in-place (no full re-render)
+        refreshTemplateBudgetSummary();
+
+        // Debounced Firestore write
+        clearTimeout(budgetSaveTimer);
+        budgetSaveTimer = setTimeout(function() {
+          var update = { updated_at: firebase.firestore.FieldValue.serverTimestamp() };
+          update[field] = value;
+          db.collection('projects').doc(projectId)
+            .collection('budgetItems').doc(itemId)
+            .update(update)
+            .catch(function(e){ console.error('[Budget] Save failed:', e); });
+        }, 800);
+      });
+    });
+
+    // Status dropdowns — save immediately on change
+    document.querySelectorAll('.tbudget-status').forEach(function(sel) {
+      sel.addEventListener('change', function() {
+        var itemId = this.dataset.budgetItemStatus;
+        var status = this.value;
+        var item = firestoreBudgetItems.find(function(i){ return i.id === itemId; });
+        if (item) item.status = status;
+        db.collection('projects').doc(projectId)
+          .collection('budgetItems').doc(itemId)
+          .update({ status: status, updated_at: firebase.firestore.FieldValue.serverTimestamp() })
+          .catch(function(e){ console.error('[Budget] Status save failed:', e); });
+      });
+    });
+  }
+
+  // Update summary bar numbers without full re-render
+  function refreshTemplateBudgetSummary() {
+    var totals = getTemplatedBudgetTotals();
+    var pct = totals.budget > 0 ? Math.min(100, (totals.actual / totals.budget) * 100) : 0;
+    var tBudget  = document.getElementById('tbudget-total-budget');
+    var tActual  = document.getElementById('tbudget-total-actual');
+    var tVar     = document.getElementById('tbudget-total-variance');
+    var tFill    = document.getElementById('tbudget-progress-fill');
+    var tLabel   = document.getElementById('tbudget-progress-label');
+    if (tBudget)  tBudget.textContent  = formatCurrency(totals.budget);
+    if (tActual)  tActual.textContent  = formatCurrency(totals.actual);
+    if (tVar)   { tVar.textContent = formatCurrency(totals.variance); tVar.style.color = totals.variance < 0 ? '#A0705A' : ''; }
+    if (tFill)    tFill.style.width   = pct.toFixed(1) + '%';
+    if (tLabel)   tLabel.textContent  = pct.toFixed(1) + '% of budget spent';
   }
 
   function bindAdminBudgetEvents() {

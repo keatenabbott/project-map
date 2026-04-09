@@ -2343,6 +2343,229 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 12px;
 }
 
+/* ================================================
+   TEMPLATE BUDGET ENTRY UI
+   ================================================ */
+.tbudget-info-bar {
+  display: flex;
+  gap: 24px;
+  padding: 10px 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-wrap: wrap;
+}
+.tbudget-info-bar strong {
+  color: var(--text);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tbudget-col-headers {
+  display: grid;
+  grid-template-columns: 80px 1fr 110px 110px 100px 130px;
+  gap: 0;
+  padding: 8px 12px;
+  font-family: var(--font-nav);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.tbudget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tbudget-category {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.tbudget-cat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition);
+}
+.tbudget-cat-header:hover { background: var(--surface-hover); }
+.tbudget-cat-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tbudget-cat-chevron {
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 10px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.tbudget-cat-code {
+  font-family: var(--font-nav);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  min-width: 24px;
+}
+.tbudget-cat-name {
+  font-family: var(--font-nav);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+.tbudget-cat-count {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.tbudget-cat-right {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.tbudget-cat-budget,
+.tbudget-cat-actual {
+  font-family: var(--font-nav);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 90px;
+  text-align: right;
+}
+.tbudget-cat-variance {
+  font-family: var(--font-nav);
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 80px;
+  text-align: right;
+}
+.tbudget-lines {
+  border-top: 1px solid var(--border);
+  padding: 4px 0;
+}
+.tbudget-line {
+  display: grid;
+  grid-template-columns: 80px 1fr 110px 110px 100px 130px;
+  gap: 0;
+  align-items: center;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border-light, #f0ede8);
+  transition: background var(--transition);
+}
+.tbudget-line:last-child { border-bottom: none; }
+.tbudget-line:hover { background: var(--surface-hover); }
+.tbudget-line.inactive { opacity: 0.55; }
+.tbudget-line-code {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+.tbudget-line-name {
+  font-size: 12px;
+  color: var(--text);
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tbudget-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: help;
+  flex-shrink: 0;
+}
+.tbudget-inactive-badge {
+  font-family: var(--font-nav);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--border);
+  padding: 1px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.05em;
+}
+.tbudget-input {
+  width: 100%;
+  max-width: 96px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 6px;
+  text-align: right;
+  transition: border-color var(--transition), background var(--transition);
+  -moz-appearance: textfield;
+}
+.tbudget-input::-webkit-outer-spin-button,
+.tbudget-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tbudget-input:hover { border-color: var(--border); }
+.tbudget-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--background);
+}
+.tbudget-line-variance {
+  font-family: var(--font-nav);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: right;
+  padding-right: 8px;
+}
+.tbudget-status {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  width: 100%;
+  cursor: pointer;
+}
+.tbudget-optional-toggle {
+  padding: 8px 14px;
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tbudget-optional-toggle:hover { color: var(--text); }
+
 .modal.modal-budget .admin-form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
