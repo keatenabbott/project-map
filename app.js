@@ -370,168 +370,240 @@
   }
 
   function downloadBudgetPdf(project) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('portrait', 'mm', 'letter');
-    let y = generatePdfHeader(doc, project);
+    var jsPDF  = window.jspdf.jsPDF;
+    var doc    = new jsPDF('portrait', 'mm', 'letter');
+    var pw     = doc.internal.pageSize.getWidth();
+    var ph     = doc.internal.pageSize.getHeight();
+    var ml = 14, mr = 14, cw = pw - ml - mr;
+    var accent   = [196, 165, 123];
+    var dark     = [26, 26, 26];
+    var light    = [180, 180, 180];
+    var offWhite = [250, 249, 246];
+    var borderC  = [229, 227, 222];
+    var y = generatePdfHeader(doc, project);
 
-    // Section title
+    // Section label
+    y += 4;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(26, 26, 26);
-    doc.text('BUDGET SUMMARY', 14, y);
-    y += 8;
+    doc.setFontSize(7);
+    doc.setTextColor.apply(doc, accent);
+    doc.text('BUDGET SUMMARY', ml, y);
+    y += 6;
 
-    // Build table data from Firestore budget items
-    const items = firestoreBudgetItems || [];
-    if (items.length === 0) {
+    var items = firestoreBudgetItems || [];
+    var subItems = items.filter(function(i) { return i.parent_code !== null && i.parent_code !== undefined || (i.budgetAmount !== undefined); });
+    // For old schema: use all items. For new: skip headers (parent_code===null)
+    var lineItems = items.filter(function(i) { return i.parent_code !== null; });
+    if (lineItems.length === 0) lineItems = items; // old schema fallback
+
+    if (lineItems.length === 0) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text('No budget items found.', 14, y);
+      doc.setFontSize(9);
+      doc.setTextColor.apply(doc, light);
+      doc.text('No budget items found.', ml, y);
     } else {
-      // Group by category
-      const cats = {};
-      let totalBudget = 0, totalActual = 0;
-      items.forEach(item => {
-        const cat = item.category || 'Uncategorized';
+      var totalBudget = 0, totalActual = 0;
+      lineItems.forEach(function(i) { totalBudget += budgetAmt(i); totalActual += actualAmt(i); });
+      var totalVar = totalBudget - totalActual;
+      var pct = totalBudget > 0 ? Math.min(100, (totalActual / totalBudget) * 100) : 0;
+
+      // Info grid
+      var cells = [
+        { label: 'TOTAL BUDGET',  value: formatCurrency(totalBudget), color: dark },
+        { label: 'SPENT TO DATE', value: formatCurrency(totalActual), color: dark },
+        { label: 'REMAINING',     value: formatCurrency(totalVar),    color: totalVar < 0 ? [153,27,27] : [6,95,70] },
+        { label: 'PROGRESS',      value: pct.toFixed(0) + '%',        color: dark }
+      ];
+      var cellW = cw / 4, cellH = 16;
+      doc.setFillColor.apply(doc, offWhite);
+      doc.rect(ml, y, cw, cellH, 'F');
+      doc.setDrawColor.apply(doc, borderC);
+      doc.setLineWidth(0.2);
+      doc.rect(ml, y, cw, cellH, 'S');
+      cells.forEach(function(cell, i) {
+        var cx = ml + i * cellW;
+        if (i > 0) { doc.setDrawColor.apply(doc, borderC); doc.line(cx, y, cx, y + cellH); }
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(6); doc.setTextColor.apply(doc, light);
+        doc.text(cell.label, cx + 3, y + 5);
+        doc.setFont('helvetica', 'bold');  doc.setFontSize(9); doc.setTextColor.apply(doc, cell.color);
+        doc.text(cell.value, cx + 3, y + 12);
+      });
+      y += cellH + 8;
+
+      // Table
+      var cats = {};
+      lineItems.forEach(function(item) {
+        var cat = item.top_level_name || item.category || 'Uncategorized';
         if (!cats[cat]) cats[cat] = [];
         cats[cat].push(item);
-        totalBudget += Number(item.budgetAmount) || 0;
-        totalActual += Number(item.actualAmount) || 0;
       });
-
-      const tableBody = [];
-      Object.keys(cats).sort().forEach(cat => {
-        // Category header row
-        tableBody.push([{ content: cat.toUpperCase(), colSpan: 5, styles: { fillColor: [244, 242, 238], fontStyle: 'bold', fontSize: 8, textColor: [26, 26, 26] } }]);
-        let catBudget = 0, catActual = 0;
-        cats[cat].forEach(item => {
-          const b = Number(item.budgetAmount) || 0;
-          const a = Number(item.actualAmount) || 0;
-          const v = b - a;
-          catBudget += b;
-          catActual += a;
+      var tableBody = [];
+      Object.keys(cats).sort().forEach(function(cat) {
+        tableBody.push([{ content: cat, colSpan: 4, styles: { fillColor: [244,242,238], fontStyle: 'bold', fontSize: 7.5, textColor: [26,26,26] } }]);
+        var catB = 0, catA = 0;
+        cats[cat].forEach(function(item) {
+          var b = budgetAmt(item), a = actualAmt(item), v = b - a;
+          catB += b; catA += a;
           tableBody.push([
-            item.costCode || item.description || item.name || '',
-            formatCurrency(b),
-            formatCurrency(a),
-            formatCurrency(v),
-            item.status || ''
+            item.cost_code ? item.cost_code + '  ' + item.name : (item.costCode || item.description || item.name || ''),
+            formatCurrency(b), formatCurrency(a), formatCurrency(v)
           ]);
         });
-        const catVar = catBudget - catActual;
-        tableBody.push([{ content: 'Subtotal', styles: { fontStyle: 'bold' } }, { content: formatCurrency(catBudget), styles: { fontStyle: 'bold' } }, { content: formatCurrency(catActual), styles: { fontStyle: 'bold' } }, { content: formatCurrency(catVar), styles: { fontStyle: 'bold' } }, '']);
+        tableBody.push([
+          { content: 'Subtotal', styles: { fontStyle: 'bold', fillColor: [244,242,238] } },
+          { content: formatCurrency(catB), styles: { fontStyle: 'bold', fillColor: [244,242,238] } },
+          { content: formatCurrency(catA), styles: { fontStyle: 'bold', fillColor: [244,242,238] } },
+          { content: formatCurrency(catB - catA), styles: { fontStyle: 'bold', fillColor: [244,242,238], textColor: (catB-catA)<0?[153,27,27]:[26,26,26] } }
+        ]);
       });
-
-      // Grand total
-      const totalVar = totalBudget - totalActual;
-      tableBody.push([{ content: 'GRAND TOTAL', styles: { fontStyle: 'bold', fillColor: [26, 26, 26], textColor: [250, 249, 246] } }, { content: formatCurrency(totalBudget), styles: { fontStyle: 'bold', fillColor: [26, 26, 26], textColor: [250, 249, 246] } }, { content: formatCurrency(totalActual), styles: { fontStyle: 'bold', fillColor: [26, 26, 26], textColor: [250, 249, 246] } }, { content: formatCurrency(totalVar), styles: { fontStyle: 'bold', fillColor: [26, 26, 26], textColor: [250, 249, 246] } }, { content: '', styles: { fillColor: [26, 26, 26] } }]);
+      tableBody.push([
+        { content: 'TOTAL', styles: { fontStyle:'bold', fillColor:dark, textColor:offWhite } },
+        { content: formatCurrency(totalBudget), styles: { fontStyle:'bold', fillColor:dark, textColor:offWhite, halign:'right' } },
+        { content: formatCurrency(totalActual), styles: { fontStyle:'bold', fillColor:dark, textColor:offWhite, halign:'right' } },
+        { content: formatCurrency(totalVar),    styles: { fontStyle:'bold', fillColor:dark, textColor:offWhite, halign:'right' } }
+      ]);
 
       doc.autoTable({
         startY: y,
-        head: [['Item', 'Budget', 'Actual', 'Variance', 'Status']],
+        head: [['Item', 'Budget', 'Actual', 'Variance']],
         body: tableBody,
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica', textColor: [26, 26, 26] },
-        headStyles: { fillColor: [26, 26, 26], textColor: [250, 249, 246], fontStyle: 'bold', fontSize: 7, letterSpacing: 0.5 },
-        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'center' } },
-        alternateRowStyles: { fillColor: [250, 249, 246] },
+        margin: { left: ml, right: mr },
+        styles:     { fontSize: 8, cellPadding: 2.5, font: 'helvetica', textColor: dark },
+        headStyles: { fillColor: dark, textColor: offWhite, fontStyle: 'bold', fontSize: 7 },
+        columnStyles: { 0: { cellWidth: 'auto' }, 1: { halign:'right', cellWidth:32 }, 2: { halign:'right', cellWidth:32 }, 3: { halign:'right', cellWidth:32 } },
+        alternateRowStyles: { fillColor: offWhite },
         theme: 'plain',
-        tableLineColor: [229, 227, 222],
+        tableLineColor: borderC,
         tableLineWidth: 0.1,
+        didParseCell: function(data) {
+          if (data.section === 'body' && data.column.index === 3 && typeof data.cell.raw === 'string') {
+            var v = parseFloat(data.cell.raw.replace(/[^\d.-]/g,''));
+            if (!isNaN(v) && v < 0) data.cell.styles.textColor = [153,27,27];
+          }
+        }
       });
     }
 
     // Footer
-    const pages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pages; i++) {
+    var pages = doc.internal.getNumberOfPages();
+    for (var i = 1; i <= pages; i++) {
       doc.setPage(i);
-      doc.setFontSize(7);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Generated by ' + PORTAL_CONFIG.companyName + ' ' + PORTAL_CONFIG.tagline, 14, doc.internal.pageSize.getHeight() - 8);
-      doc.text('Page ' + i + ' of ' + pages, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+      doc.setDrawColor.apply(doc, borderC); doc.setLineWidth(0.2);
+      doc.line(ml, ph - 14, pw - mr, ph - 14);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor.apply(doc, light);
+      doc.text(PORTAL_CONFIG.companyName + '  ·  ' + PORTAL_CONFIG.tagline, ml, ph - 9);
+      doc.text('Page ' + i + ' of ' + pages, pw - mr, ph - 9, { align: 'right' });
     }
-
-    const safeName = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
+    var safeName = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
     doc.save(safeName + '_Budget_' + new Date().toISOString().slice(0,10) + '.pdf');
     showToast('Budget PDF downloaded.');
   }
 
   function downloadPhasesPdf(project) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('portrait', 'mm', 'letter');
-    let y = generatePdfHeader(doc, project);
+    var jsPDF  = window.jspdf.jsPDF;
+    var doc    = new jsPDF('portrait', 'mm', 'letter');
+    var pw     = doc.internal.pageSize.getWidth();
+    var ph     = doc.internal.pageSize.getHeight();
+    var ml = 14, mr = 14, cw = pw - ml - mr;
+    var accent   = [196, 165, 123];
+    var dark     = [26, 26, 26];
+    var light    = [180, 180, 180];
+    var offWhite = [250, 249, 246];
+    var borderC  = [229, 227, 222];
+    var y = generatePdfHeader(doc, project);
 
+    // Section label
+    y += 4;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(26, 26, 26);
-    doc.text('PROJECT PHASES', 14, y);
-    y += 8;
+    doc.setFontSize(7);
+    doc.setTextColor.apply(doc, accent);
+    doc.text('PROJECT TIMELINE', ml, y);
+    y += 6;
 
-    const phases = project.phases || [];
+    var phases = project.phases || [];
     if (phases.length === 0) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text('No phases defined.', 14, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor.apply(doc, light);
+      doc.text('No phases defined.', ml, y);
     } else {
-      const tableBody = phases.map((phase, i) => {
-        const status = (phase.status || 'upcoming').replace('-', ' ');
-        const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+      var completed  = phases.filter(function(p) { return p.status === 'completed'; }).length;
+      var inProgress = phases.filter(function(p) { return p.status === 'in-progress'; }).length;
+      var upcoming   = phases.filter(function(p) { return p.status === 'upcoming'; }).length;
+      var pct        = Math.round((completed / phases.length) * 100);
+
+      // Info grid
+      var cells = [
+        { label: 'COMPLETED',   value: String(completed),   color: [6,95,70]  },
+        { label: 'IN PROGRESS', value: String(inProgress),  color: dark       },
+        { label: 'UPCOMING',    value: String(upcoming),    color: light      },
+        { label: 'PROGRESS',    value: pct + '%',           color: dark       }
+      ];
+      var cellW = cw / 4, cellH = 16;
+      doc.setFillColor.apply(doc, offWhite); doc.rect(ml, y, cw, cellH, 'F');
+      doc.setDrawColor.apply(doc, borderC); doc.setLineWidth(0.2); doc.rect(ml, y, cw, cellH, 'S');
+      cells.forEach(function(cell, i) {
+        var cx = ml + i * cellW;
+        if (i > 0) { doc.setDrawColor.apply(doc, borderC); doc.line(cx, y, cx, y + cellH); }
+        doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor.apply(doc, light);
+        doc.text(cell.label, cx + 3, y + 5);
+        doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc, cell.color);
+        doc.text(cell.value, cx + 3, y + 13);
+      });
+      y += cellH + 8;
+
+      // Table
+      var tableBody = phases.map(function(phase, i) {
+        var s = (phase.status || 'upcoming').replace('-', ' ');
+        var sl = s.charAt(0).toUpperCase() + s.slice(1);
         return [
           String(i + 1).padStart(2, '0'),
           phase.name || '',
-          statusLabel,
-          phase.startDate || '—',
-          phase.endDate || '—'
+          sl,
+          phase.startDate ? new Date(phase.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+          phase.endDate   ? new Date(phase.endDate   + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
         ];
       });
 
       doc.autoTable({
         startY: y,
-        head: [['#', 'Phase', 'Status', 'Start Date', 'End Date']],
+        head: [['#', 'Phase', 'Status', 'Start', 'End']],
         body: tableBody,
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 9, cellPadding: 3, font: 'helvetica', textColor: [26, 26, 26] },
-        headStyles: { fillColor: [26, 26, 26], textColor: [250, 249, 246], fontStyle: 'bold', fontSize: 8 },
-        columnStyles: { 0: { cellWidth: 12, halign: 'center' }, 2: { cellWidth: 28 }, 3: { cellWidth: 28 }, 4: { cellWidth: 28 } },
-        alternateRowStyles: { fillColor: [250, 249, 246] },
+        margin: { left: ml, right: mr },
+        styles:     { fontSize: 9, cellPadding: 3.5, font: 'helvetica', textColor: dark },
+        headStyles: { fillColor: dark, textColor: offWhite, fontStyle: 'bold', fontSize: 7 },
+        columnStyles: { 0: { cellWidth: 12, halign: 'center' }, 2: { cellWidth: 26 }, 3: { cellWidth: 32 }, 4: { cellWidth: 32 } },
+        alternateRowStyles: { fillColor: offWhite },
         theme: 'plain',
-        tableLineColor: [229, 227, 222],
+        tableLineColor: borderC,
         tableLineWidth: 0.1,
         didParseCell: function(data) {
-          if (data.section === 'body' && data.column.index === 2) {
-            const val = (data.cell.raw || '').toLowerCase();
-            if (val === 'completed') { data.cell.styles.textColor = [138, 123, 107]; data.cell.styles.fontStyle = 'bold'; }
-            else if (val === 'in progress') { data.cell.styles.textColor = [26, 26, 26]; data.cell.styles.fontStyle = 'bold'; }
-            else { data.cell.styles.textColor = [150, 150, 150]; }
+          if (data.section === 'body' && data.column.index === 2 && typeof data.cell.raw === 'string') {
+            var val = data.cell.raw.toLowerCase();
+            if (val === 'completed')  { data.cell.styles.textColor = [6,95,70];  data.cell.styles.fontStyle = 'bold'; }
+            else if (val === 'in progress') { data.cell.styles.textColor = dark; data.cell.styles.fontStyle = 'bold'; }
+            else { data.cell.styles.textColor = light; }
+          }
+          // Highlight current phase row
+          if (data.section === 'body' && data.row.raw && data.row.raw[2]) {
+            var rval = typeof data.row.raw[2] === 'string' ? data.row.raw[2].toLowerCase() : '';
+            if (rval === 'in progress') {
+              data.cell.styles.fillColor = [248, 245, 240];
+            }
           }
         }
       });
-
-      // Progress summary
-      const completed = phases.filter(p => p.status === 'completed').length;
-      const inProgress = phases.filter(p => p.status === 'in-progress').length;
-      const upcoming = phases.filter(p => p.status === 'upcoming').length;
-      const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(26, 26, 26);
-      doc.text('PROGRESS:', 14, finalY);
-      doc.setFont('helvetica', 'normal');
-      doc.text(completed + ' Completed  |  ' + inProgress + ' In Progress  |  ' + upcoming + ' Upcoming  |  ' + Math.round((completed / phases.length) * 100) + '% Complete', 42, finalY);
     }
 
-    const pages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pages; i++) {
+    // Footer
+    var pages = doc.internal.getNumberOfPages();
+    for (var i = 1; i <= pages; i++) {
       doc.setPage(i);
-      doc.setFontSize(7);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Generated by ' + PORTAL_CONFIG.companyName + ' ' + PORTAL_CONFIG.tagline, 14, doc.internal.pageSize.getHeight() - 8);
-      doc.text('Page ' + i + ' of ' + pages, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+      doc.setDrawColor.apply(doc, borderC); doc.setLineWidth(0.2);
+      doc.line(ml, ph - 14, pw - mr, ph - 14);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor.apply(doc, light);
+      doc.text(PORTAL_CONFIG.companyName + '  ·  ' + PORTAL_CONFIG.tagline, ml, ph - 9);
+      doc.text('Page ' + i + ' of ' + pages, pw - mr, ph - 9, { align: 'right' });
     }
-
-    const safeName = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
+    var safeName = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
     doc.save(safeName + '_Phases_' + new Date().toISOString().slice(0,10) + '.pdf');
     showToast('Phases PDF downloaded.');
   }
@@ -705,11 +777,12 @@
     var doc = new jsPDF('portrait', 'mm', 'letter');
     var y = generatePdfHeader(doc, project);
 
+    y += 4;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(26, 26, 26);
+    doc.setFontSize(7);
+    doc.setTextColor(196, 165, 123);
     doc.text('CHANGE ORDERS', 14, y);
-    y += 8;
+    y += 6;
 
     var orders = currentChangeOrders || [];
     if (orders.length === 0) {
@@ -810,12 +883,14 @@
     }
 
     var pages = doc.internal.getNumberOfPages();
+    var ph2 = doc.internal.pageSize.getHeight(), pw2 = doc.internal.pageSize.getWidth();
     for (var i = 1; i <= pages; i++) {
       doc.setPage(i);
-      doc.setFontSize(7);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Generated by ' + PORTAL_CONFIG.companyName + ' ' + PORTAL_CONFIG.tagline, 14, doc.internal.pageSize.getHeight() - 8);
-      doc.text('Page ' + i + ' of ' + pages, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+      doc.setDrawColor(229,227,222); doc.setLineWidth(0.2);
+      doc.line(14, ph2 - 14, pw2 - 14, ph2 - 14);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(180,180,180);
+      doc.text(PORTAL_CONFIG.companyName + '  ·  ' + PORTAL_CONFIG.tagline, 14, ph2 - 9);
+      doc.text('Page ' + i + ' of ' + pages, pw2 - 14, ph2 - 9, { align: 'right' });
     }
 
     var safeName = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
