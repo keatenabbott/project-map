@@ -655,35 +655,44 @@
   // FIREBASE DATA OPERATIONS
   // ========================================
 
-  async function checkFirstRun() {
+  // Reads the publicly-readable settings/portal doc to check if an admin has been created.
+  // Falls back to showing setup (true) on error so a fresh install still works.
+  async function checkAdminInitialized() {
     try {
-      const adminSnap = await db.collection('users').where('role', '==', 'admin').limit(1).get();
-      return adminSnap.empty; // Only show setup if NO admin exists
+      const portalDoc = await db.collection('settings').doc('portal').get();
+      return portalDoc.exists && portalDoc.data().adminInitialized === true;
     } catch (e) {
-      console.error('Error checking first run:', e);
-      return false; // Default to LOGIN (not setup) if Firestore is slow or errors
+      console.error('Error checking admin status:', e);
+      return false; // Default to NOT initialized (show setup) on error
     }
   }
 
   async function createAdminAccount(email, password, name) {
     let cred;
+    let isNewAccount = true;
     try {
       cred = await auth.createUserWithEmailAndPassword(email, password);
     } catch (err) {
       if (err.code === 'auth/email-already-in-use') {
-        // Admin already exists, just sign in
+        // Admin already exists in Auth — just sign in
         cred = await auth.signInWithEmailAndPassword(email, password);
-        return cred.user;
+        isNewAccount = false;
+      } else {
+        throw err;
       }
-      throw err;
     }
-    await db.collection('users').doc(cred.user.uid).set({
-      email: email,
-      name: name,
-      role: 'admin',
-      projectId: null,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    if (isNewAccount) {
+      await db.collection('users').doc(cred.user.uid).set({
+        email: email,
+        name: name,
+        role: 'admin',
+        projectId: null,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    // Mark portal as admin-initialized — this is the publicly-readable flag
+    // that lets unauthenticated users know to show login instead of setup.
+    await db.collection('settings').doc('portal').set({ adminInitialized: true }, { merge: true });
     return cred.user;
   }
 
@@ -6208,6 +6217,9 @@
         if (userProfile.role === 'admin') {
           await refreshAdminData();
           appState = 'admin';
+          // Auto-migrate existing admins: ensure settings/portal is marked initialized.
+          // This handles accounts created before this flag existed.
+          db.collection('settings').doc('portal').set({ adminInitialized: true }, { merge: true }).catch(() => {});
         } else if (userProfile.role === 'employee') {
           // Employee — load all projects, filter to assigned
           await loadAllProjects();
@@ -6232,16 +6244,17 @@
       currentUser = null;
       userProfile = null;
 
-      // Check if admin exists, show login if so, setup if not
-      let isFirstRun = true;
+      // Check settings/portal (publicly readable) instead of querying the
+      // protected users collection — avoids a Firestore permissions error.
+      let adminInitialized = false;
       try {
-        const snap = await db.collection('users').where('role', '==', 'admin').limit(1).get();
-        isFirstRun = snap.empty;
+        const portalDoc = await db.collection('settings').doc('portal').get();
+        adminInitialized = portalDoc.exists && portalDoc.data().adminInitialized === true;
       } catch (e) {
-        console.warn('Could not check for admin, defaulting to setup:', e);
-        isFirstRun = true;
+        console.warn('Could not check admin status, defaulting to setup:', e);
+        adminInitialized = false;
       }
-      appState = isFirstRun ? 'setup' : 'login';
+      appState = adminInitialized ? 'login' : 'setup';
 
       render();
     }
@@ -6281,8 +6294,8 @@
   // assume it's misconfigured and show the setup/login screen
   setTimeout(() => {
     if (appState === 'loading') {
-      console.warn('Firebase auth timeout — showing setup screen.');
-      appState = 'setup';
+      console.warn('Firebase auth timeout — showing login screen.');
+      appState = 'login';
       render();
     }
   }, 8000);
