@@ -2804,7 +2804,43 @@
     var hasSheet = project && project.googleSheetUrl && extractSheetId(project.googleSheetUrl);
     var html = '<div class="welcome-header"><h1>Finances</h1><p>' + escapeHtml(project.name) + '</p></div>';
 
-    // ── BUDGET ────────────────────────────────────────────────────────────────
+    // ── INVOICES (first) ──────────────────────────────────────────────────────
+    html += '<div class="finances-section">';
+    html += '<div class="finances-section-label">Invoices</div>';
+    if (invoicesLoading) {
+      html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices…</span></div>';
+    } else {
+      html += renderInvoicesSummaryBar();
+      if (currentInvoices.length === 0) {
+        html += '<div class="empty-state"><div class="empty-state-icon">\U0001f9fe</div><div class="empty-state-title">No Invoices Yet</div>';
+        html += '<div class="empty-state-message">Invoices will appear here when your builder adds them.</div></div>';
+      } else {
+        currentInvoices.forEach(function(inv) {
+          var isPaid = inv.status === 'paid';
+          html += '<div class="invoice-item' + (isPaid ? ' is-paid' : '') + '">';
+          html += '<div class="invoice-item-header"><div class="invoice-item-title">' + escapeHtml(inv.title || '') + '</div>';
+          html += '<div style="display:flex;align-items:center;gap:8px;"><div class="invoice-amount">' + formatCurrency(inv.amount) + '</div>';
+          html += renderInvoiceStatusBadge(inv.status) + '</div></div>';
+          html += '<div class="invoice-item-meta">';
+          if (inv.dueDate) html += '<span style="font-family:var(--font-nav);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-tertiary)">Due: ' + formatDate(inv.dueDate) + '</span>';
+          html += '</div>';
+          if (inv.notes) html += '<div class="invoice-item-notes">' + escapeHtml(inv.notes) + '</div>';
+          if (inv.invoiceUrl) {
+            html += '<div class="invoice-item-footer">';
+            if (!isPaid) {
+              html += '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-pay-btn">Pay Now</a>';
+            } else {
+              html += '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-view-btn">View Invoice</a>';
+            }
+            html += '</div>';
+          }
+          html += '</div>';
+        });
+      }
+    }
+    html += '</div>'; // .finances-section (invoices)
+
+    // ── BUDGET (below invoices, always expanded) ───────────────────────────────
     html += '<div class="finances-section">';
     html += '<div class="finances-section-label">Budget</div>';
 
@@ -2824,8 +2860,7 @@
           html += '<button class="budget-refresh-btn" id="budgetRefreshBtn"><span class="spinner"></span>Refresh</button></div>';
         }
         html += renderBudgetSummary(false);
-        html += '<details class="finances-details"><summary class="finances-details-summary">View detailed breakdown</summary>';
-        html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>';
+        html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>'
         html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
         html += '</tr></thead><tbody>';
         var grandBudgetS = 0, grandActualS = 0, grandVarianceS = 0;
@@ -2858,7 +2893,7 @@
         html += '<tr class="budget-row-grand"><td>TOTALS</td>';
         html += '<td>' + formatCurrency(grandBudgetS) + '</td><td>' + formatCurrency(grandActualS) + '</td>';
         html += '<td class="' + gvClassS + '">' + formatCurrency(grandVarianceS) + '</td><td></td></tr>';
-        html += '</tbody></table></div></details>';
+        html += '</tbody></table></div>';
       }
     } else {
       if (firestoreBudgetLoading) {
@@ -2878,7 +2913,6 @@
         html += '</div><div class="budget-progress-bar"><div class="budget-progress-fill" style="width:' + pctSpent.toFixed(1) + '%;' + (pctSpent > 100 ? 'background:#A0705A' : '') + '"></div></div>';
         html += '<div class="budget-progress-label">' + pctSpent.toFixed(1) + '% of budget spent</div>';
         html += '</div></div>';
-        html += '<details class="finances-details"><summary class="finances-details-summary">View detailed breakdown</summary>';
         html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>';
         html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
         html += '</tr></thead><tbody>';
@@ -2927,47 +2961,10 @@
         html += '<tr class="budget-row-grand"><td>TOTALS</td>';
         html += '<td>' + formatCurrency(grandBudgetF) + '</td><td>' + formatCurrency(grandActualF) + '</td>';
         html += '<td class="' + gvClassF + '">' + formatCurrency(grandVarianceF) + '</td><td></td></tr>';
-        html += '</tbody></table></div></details>';
+        html += '</tbody></table></div>';
       }
     }
-    html += '</div>'; // .finances-section
-
-    // ── INVOICES ──────────────────────────────────────────────────────────
-    html += '<div class="finances-section">';
-    html += '<div class="finances-section-label">Invoices</div>';
-    if (invoicesLoading) {
-      html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices…</span></div>';
-    } else {
-      html += renderInvoicesSummaryBar();
-      if (currentInvoices.length === 0) {
-        html += '<div class="empty-state"><div class="empty-state-icon">\U0001f9fe</div><div class="empty-state-title">No Invoices Yet</div>';
-        html += '<div class="empty-state-message">Invoices will appear here when your builder adds them. You\'ll be able to review and pay directly from this page.</div></div>';
-      } else {
-        currentInvoices.forEach(function(inv) {
-          var isPaid = inv.status === 'paid';
-          html += '<div class="invoice-item' + (isPaid ? ' is-paid' : '') + '">';
-          html += '<div class="invoice-item-header"><div class="invoice-item-title">' + escapeHtml(inv.title || '') + '</div>';
-          html += '<div style="display:flex;align-items:center;gap:8px;"><div class="invoice-amount">' + formatCurrency(inv.amount) + '</div>';
-          html += renderInvoiceStatusBadge(inv.status) + '</div></div>';
-          html += '<div class="invoice-item-meta">';
-          if (inv.dueDate) html += '<span style="font-family:var(--font-nav);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-tertiary)">Due: ' + formatDate(inv.dueDate) + '</span>';
-          html += '</div>';
-          if (inv.notes) html += '<div class="invoice-item-notes">' + escapeHtml(inv.notes) + '</div>';
-          if (inv.invoiceUrl) {
-            html += '<div class="invoice-item-footer">';
-            if (!isPaid) {
-              html += '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-pay-btn">Pay Now</a>';
-            } else {
-              html += '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-view-btn">View Invoice</a>';
-            }
-            html += '</div>';
-          }
-          html += '</div>';
-        });
-      }
-    }
-    html += '</div>'; // .finances-section
-
+    html += '</div>'; // .finances-section (budget)
     return html;
   }
 
