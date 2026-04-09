@@ -76,6 +76,8 @@
   let wizardState = null;       // multi-step new-project wizard state
   let budgetCategoryOpen = {};  // { '01': true, '05': false } — template budget expand state
   let budgetSaveTimer = null;   // debounce handle for budget input saves
+  let budgetEditingLine = null; // id of line currently in edit mode
+  let budgetAddingToCategory = null; // catCode where the add-line form is open
   let editProjectData = null;
 
   // Admin detail sub-tab
@@ -3733,7 +3735,151 @@
   // TEMPLATE BUDGET ADMIN VIEW
   // ========================================
 
+  // Suggest next sub-code for a category when adding a custom line
+  function suggestNextCode(catCode) {
+    var subs = firestoreBudgetItems.filter(function(i) {
+      return i.top_level_category === catCode && i.parent_code;
+    });
+    if (!subs.length) return catCode + '.10';
+    var maxNum = 0;
+    subs.forEach(function(i) {
+      var parts = (i.cost_code || '').split('.');
+      var n = parseInt(parts[1], 10) || 0;
+      if (n > maxNum) maxNum = n;
+    });
+    return catCode + '.' + (maxNum + 10);
+  }
+
+  // Inline edit row — replaces the line when in edit mode
+  function renderTemplateBudgetLineEdit(item) {
+    var costTypes = ['subcontractor','labor','material','equipment','fee','allowance','mixed'];
+    var ctSelect = '<select class="tbudget-edit-select" id="tEdit_costType">';
+    costTypes.forEach(function(t){
+      ctSelect += '<option value="'+t+'"'+(t===(item.cost_type||'subcontractor')?' selected':'')+'>'+t+'</option>';
+    });
+    ctSelect += '</select>';
+    return '<div class="tbudget-edit-row" data-editing-item="'+item.id+'">'
+      + '<div class="tbudget-edit-fields">'
+      + '<div class="tbudget-edit-field"><label>Code</label><input class="admin-input" id="tEdit_code" value="'+escapeAttr(item.cost_code||'')+'"></div>'
+      + '<div class="tbudget-edit-field tbudget-edit-name"><label>Name</label><input class="admin-input" id="tEdit_name" value="'+escapeAttr(item.name||'')+'"></div>'
+      + '<div class="tbudget-edit-field"><label>Cost Type</label>'+ctSelect+'</div>'
+      + '<div class="tbudget-edit-field"><label>Vendor</label><input class="admin-input" id="tEdit_vendor" value="'+escapeAttr(item.vendor||'')+'"></div>'
+      + '<div class="tbudget-edit-field tbudget-edit-notes"><label>Notes</label><input class="admin-input" id="tEdit_notes" value="'+escapeAttr(item.notes||'')+'"></div>'
+      + '</div>'
+      + '<div class="tbudget-edit-actions">'
+      + '<button class="btn btn-primary btn-small" id="tEditSaveBtn" data-budget-item-save="'+item.id+'">Save</button>'
+      + '<button class="btn btn-secondary btn-small" id="tEditCancelBtn" data-budget-item-cancel="'+item.id+'">Cancel</button>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // Add custom line form — appears at bottom of an expanded category
+  function renderTemplateBudgetAddRow(catCode, catName) {
+    var suggested = suggestNextCode(catCode);
+    var costTypes = ['subcontractor','labor','material','equipment','fee','allowance','mixed'];
+    var ctSelect = '<select class="tbudget-edit-select" id="tAdd_costType">';
+    costTypes.forEach(function(t){ ctSelect += '<option value="'+t+'"'+(t==='subcontractor'?' selected':'')+'>'+t+'</option>'; });
+    ctSelect += '</select>';
+    return '<div class="tbudget-add-row">'
+      + '<div class="tbudget-edit-fields">'
+      + '<div class="tbudget-edit-field"><label>Code</label><input class="admin-input" id="tAdd_code" value="'+escapeAttr(suggested)+'"></div>'
+      + '<div class="tbudget-edit-field tbudget-edit-name"><label>Name <span style="color:#A0705A">*</span></label><input class="admin-input" id="tAdd_name" placeholder="e.g. Custom framing scope"></div>'
+      + '<div class="tbudget-edit-field"><label>Cost Type</label>'+ctSelect+'</div>'
+      + '<div class="tbudget-edit-field"><label>Vendor</label><input class="admin-input" id="tAdd_vendor" placeholder="Optional"></div>'
+      + '</div>'
+      + '<div class="tbudget-edit-actions">'
+      + '<button class="btn btn-primary btn-small" id="tAddSaveBtn" data-add-to-cat="'+catCode+'" data-cat-name="'+escapeAttr(catName)+'">Add Line</button>'
+      + '<button class="btn btn-secondary btn-small" id="tAddCancelBtn">Cancel</button>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // Save edits to an existing budget line
+  async function saveBudgetLineEdit(projectId, itemId) {
+    var code   = (document.getElementById('tEdit_code')?.value || '').trim();
+    var name   = (document.getElementById('tEdit_name')?.value || '').trim();
+    var ctype  = document.getElementById('tEdit_costType')?.value || 'subcontractor';
+    var vendor = (document.getElementById('tEdit_vendor')?.value || '').trim();
+    var notes  = (document.getElementById('tEdit_notes')?.value || '').trim();
+    if (!name) { showToast('Name is required.'); return; }
+    var update = {
+      cost_code: code,
+      name:      name,
+      cost_type: ctype,
+      vendor:    vendor || null,
+      notes:     notes  || null,
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    // Optimistic update in memory
+    var item = firestoreBudgetItems.find(function(i){ return i.id === itemId; });
+    if (item) Object.assign(item, update);
+    budgetEditingLine = null;
+    render();
+    await db.collection('projects').doc(projectId)
+      .collection('budgetItems').doc(itemId).update(update);
+  }
+
+  // Add a brand-new custom line to a category
+  async function addCustomBudgetLine(projectId, catCode, catName) {
+    var code   = (document.getElementById('tAdd_code')?.value || '').trim();
+    var name   = (document.getElementById('tAdd_name')?.value || '').trim();
+    var ctype  = document.getElementById('tAdd_costType')?.value || 'subcontractor';
+    var vendor = (document.getElementById('tAdd_vendor')?.value || '').trim();
+    if (!name) { showToast('Name is required.'); return; }
+    var sortNum = firestoreBudgetItems
+      .filter(function(i){ return i.top_level_category === catCode; })
+      .reduce(function(m,i){ return Math.max(m, i.sort_order||0); }, 0) + 5;
+    var newItem = {
+      cost_code:          code || catCode + '.custom',
+      parent_code:        catCode,
+      name:               name,
+      description:        '',
+      sort_order:         sortNum,
+      top_level_category: catCode,
+      top_level_name:     catName,
+      cost_type:          ctype,
+      vendor:             vendor || null,
+      notes:              null,
+      help_text:          null,
+      client_visible:     false,
+      billable:           true,
+      is_allowance:       false,
+      is_selection:       false,
+      is_change_order:    false,
+      is_contingency:     false,
+      fee_bucket:         'none',
+      active:             true,
+      selection_status:   null,
+      budget_amount:      null,
+      actual_amount:      null,
+      status:             'not_started',
+      seeded_from:        'custom',
+      created_at:         firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at:         firebase.firestore.FieldValue.serverTimestamp()
+    };
+    budgetAddingToCategory = null;
+    var ref = await db.collection('projects').doc(projectId)
+      .collection('budgetItems').add(newItem);
+    firestoreBudgetItems.push(Object.assign({ id: ref.id }, newItem));
+    budgetCategoryOpen[catCode] = true; // keep category open
+    render();
+    showToast('Line added.');
+  }
+
+  // Delete a budget line with confirmation
+  async function deleteBudgetLine(projectId, itemId, itemName) {
+    if (!confirm('Delete \u201c' + (itemName||'this line') + '\u201d? This cannot be undone.')) return;
+    firestoreBudgetItems = firestoreBudgetItems.filter(function(i){ return i.id !== itemId; });
+    render();
+    await db.collection('projects').doc(projectId)
+      .collection('budgetItems').doc(itemId).delete();
+    showToast('Line deleted.');
+  }
+
   function renderTemplateBudgetLine(item, inactive) {
+    // Show inline edit form if this line is being edited
+    if (budgetEditingLine === item.id) return renderTemplateBudgetLineEdit(item);
+
     var b  = budgetAmt(item);
     var a  = actualAmt(item);
     var v  = b - a;
@@ -3744,14 +3890,19 @@
     statuses.forEach(function(s){ selHtml += '<option value="'+s[0]+'"'+(s[0]===st?' selected':'')+'>'+s[1]+'</option>'; });
     selHtml += '</select>';
     var helpIcon = item.help_text ? ' <span class="tbudget-help" title="'+escapeAttr(item.help_text)+'">?</span>' : '';
+    var customBadge = item.seeded_from === 'custom' ? ' <span class="tbudget-custom-badge">Custom</span>' : '';
     var inactiveBadge = inactive ? '<span class="tbudget-inactive-badge">Optional</span>' : '';
     return '<div class="tbudget-line'+(inactive?' inactive':'')+'">'
       + '<span class="tbudget-line-code">'+escapeHtml(item.cost_code)+'</span>'
-      + '<span class="tbudget-line-name">'+escapeHtml(item.name)+helpIcon+inactiveBadge+'</span>'
+      + '<span class="tbudget-line-name">'+escapeHtml(item.name)+helpIcon+customBadge+inactiveBadge+'</span>'
       + '<span class="tbudget-line-budget"><input type="number" class="tbudget-input" data-budget-field="budget_amount" data-budget-item="'+item.id+'" value="'+(b||'')+'" placeholder="—" min="0" step="1"></span>'
       + '<span class="tbudget-line-actual"><input type="number" class="tbudget-input" data-budget-field="actual_amount" data-budget-item="'+item.id+'" value="'+(a||'')+'" placeholder="—" min="0" step="1"></span>'
       + '<span class="tbudget-line-variance '+vc+'">'+(b>0||a>0 ? formatCurrency(v) : '—')+'</span>'
       + '<span class="tbudget-line-status">'+selHtml+'</span>'
+      + '<span class="tbudget-line-actions">'
+      + '<button class="tbudget-action-edit" data-budget-item-edit="'+item.id+'" title="Edit line">✎</button>'
+      + '<button class="tbudget-action-delete" data-budget-item-delete="'+item.id+'" data-item-name="'+escapeAttr(item.name||'')+'" title="Delete line">✕</button>'
+      + '</span>'
       + '</div>';
   }
 
@@ -3794,7 +3945,7 @@
 
     // ── Column headers ─────────────────────────────────────────────────────────────────
     html += '<div class="tbudget-col-headers">'
-      + '<span>Code</span><span>Description</span><span>Budget ($)</span><span>Actual ($)</span><span>Variance</span><span>Status</span>'
+      + '<span>Code</span><span>Description</span><span>Budget ($)</span><span>Actual ($)</span><span>Variance</span><span>Status</span><span></span>'
       + '</div>';
 
     // ── Category rows ─────────────────────────────────────────────────────────────────
@@ -3843,6 +3994,15 @@
               html += renderTemplateBudgetLine(item, true);
             });
           }
+        }
+
+        // Add custom line form or + button
+        if (budgetAddingToCategory === grp.catCode) {
+          html += renderTemplateBudgetAddRow(grp.catCode, grp.catName);
+        } else {
+          html += '<div class="tbudget-add-btn-row">'
+            + '<button class="tbudget-add-btn" data-add-line-cat="'+grp.catCode+'">+ Add line</button>'
+            + '</div>';
         }
 
         html += '</div>'; // .tbudget-lines
@@ -6008,6 +6168,77 @@
           .catch(function(e){ console.error('[Budget] Status save failed:', e); });
       });
     });
+
+    // Edit line — open inline edit form
+    document.querySelectorAll('[data-budget-item-edit]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var itemId = this.dataset.budgetItemEdit;
+        var item = firestoreBudgetItems.find(function(i){ return i.id === itemId; });
+        if (!item) return;
+        budgetCategoryOpen[item.top_level_category] = true;
+        budgetEditingLine = itemId;
+        budgetAddingToCategory = null;
+        render();
+      });
+    });
+
+    // Save edit
+    var saveBtn = document.getElementById('tEditSaveBtn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function() {
+        var itemId = this.dataset.budgetItemSave;
+        saveBudgetLineEdit(projectId, itemId);
+      });
+    }
+
+    // Cancel edit
+    var cancelBtn = document.getElementById('tEditCancelBtn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        budgetEditingLine = null;
+        render();
+      });
+    }
+
+    // Delete line
+    document.querySelectorAll('[data-budget-item-delete]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var itemId   = this.dataset.budgetItemDelete;
+        var itemName = this.dataset.itemName;
+        deleteBudgetLine(projectId, itemId, itemName);
+      });
+    });
+
+    // Open add-line form
+    document.querySelectorAll('[data-add-line-cat]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        budgetAddingToCategory = this.dataset.addLineCat;
+        budgetEditingLine = null;
+        render();
+      });
+    });
+
+    // Save new custom line
+    var addSaveBtn = document.getElementById('tAddSaveBtn');
+    if (addSaveBtn) {
+      addSaveBtn.addEventListener('click', function() {
+        var catCode = this.dataset.addToCat;
+        var catName = this.dataset.catName;
+        addCustomBudgetLine(projectId, catCode, catName);
+      });
+    }
+
+    // Cancel add
+    var addCancelBtn = document.getElementById('tAddCancelBtn');
+    if (addCancelBtn) {
+      addCancelBtn.addEventListener('click', function() {
+        budgetAddingToCategory = null;
+        render();
+      });
+    }
   }
 
   // Update summary bar numbers without full re-render

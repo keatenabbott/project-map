@@ -2368,7 +2368,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .tbudget-col-headers {
   display: grid;
-  grid-template-columns: 80px 1fr 110px 110px 100px 130px;
+  grid-template-columns: 80px 1fr 110px 110px 100px 130px 56px;
   gap: 0;
   padding: 8px 12px;
   font-family: var(--font-nav);
@@ -2460,7 +2460,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .tbudget-line {
   display: grid;
-  grid-template-columns: 80px 1fr 110px 110px 100px 130px;
+  grid-template-columns: 80px 1fr 110px 110px 100px 130px 56px;
   gap: 0;
   align-items: center;
   padding: 7px 14px;
@@ -2565,6 +2565,112 @@ h1, h2, h3, h4, h5, h6 {
   gap: 6px;
 }
 .tbudget-optional-toggle:hover { color: var(--text); }
+
+/* Action buttons (edit / delete) */
+.tbudget-line-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.tbudget-line:hover .tbudget-line-actions { opacity: 1; }
+.tbudget-action-edit,
+.tbudget-action-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 5px;
+  border-radius: 3px;
+  line-height: 1;
+  transition: background var(--transition);
+}
+.tbudget-action-edit  { color: var(--text-secondary); }
+.tbudget-action-edit:hover  { background: var(--border); color: var(--text); }
+.tbudget-action-delete { color: var(--text-secondary); }
+.tbudget-action-delete:hover { background: #f5ddd8; color: #A0705A; }
+
+/* Custom line badge */
+.tbudget-custom-badge {
+  font-family: var(--font-nav);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(196,165,123,0.12);
+  padding: 1px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Inline edit row */
+.tbudget-edit-row,
+.tbudget-add-row {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-hover);
+}
+.tbudget-add-row {
+  border-top: 1px dashed var(--accent);
+  border-bottom: none;
+  background: rgba(196,165,123,0.04);
+}
+.tbudget-edit-fields {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.tbudget-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 100px;
+}
+.tbudget-edit-field label {
+  font-family: var(--font-nav);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+.tbudget-edit-name { flex: 1; min-width: 200px; }
+.tbudget-edit-notes { flex: 1; min-width: 160px; }
+.tbudget-edit-select {
+  font-family: var(--font-nav);
+  font-size: 11px;
+  color: var(--text);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+.tbudget-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* + Add line button row */
+.tbudget-add-btn-row {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+}
+.tbudget-add-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  padding: 4px 0;
+  transition: color var(--transition);
+}
+.tbudget-add-btn:hover { color: var(--accent); }
 
 .modal.modal-budget .admin-form-row {
   display: grid;
