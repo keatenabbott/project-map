@@ -2470,8 +2470,9 @@
 
     var totalBudget = 0, totalSpent = 0;
     firestoreBudgetItems.forEach(function(item) {
-      // Only sum sub-codes, not category headers
-      if (!item.parent_code) return;
+      // Skip new-schema category headers only (parent_code is explicitly null)
+      // Old-schema items have parent_code === undefined and must not be skipped
+      if (item.parent_code === null) return;
       totalBudget += budgetAmt(item);
       totalSpent  += actualAmt(item);
     });
