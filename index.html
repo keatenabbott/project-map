@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROJECT MAP — Client Portal</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23222'/%3E%3Ctext x='16' y='22' font-family='Impact,Arial Black,sans-serif' font-size='20' fill='%23FAF9F6' text-anchor='middle' letter-spacing='-1'%3ED%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
+</head>
+<body>
+<div id="app" class="app-container"></div>
+<div id="toast" class="toast"></div>
+<div id="photoLightboxOverlay" onclick="this.style.display='none'"><img id="photoLightboxImg" src="" alt="Photo"></div>
+<div id="docPreviewOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:10001;align-items:center;justify-content:center;flex-direction:column;padding:20px;">
+  <div style="width:100%;max-width:900px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <span id="docPreviewTitle" style="font-family:var(--font-nav,sans-serif);font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:#fff;"></span>
+    <div style="display:flex;gap:10px;">
+      <a id="docPreviewDownload" href="" target="_blank" style="font-family:var(--font-nav,sans-serif);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;padding:6px 16px;background:#fff;color:#1a1a1a;text-decoration:none;border-radius:4px;">Download</a>
+      <button onclick="document.getElementById('docPreviewOverlay').style.display='none';document.getElementById('docPreviewContent').innerHTML='';" style="font-family:var(--font-nav,sans-serif);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;padding:6px 16px;background:transparent;color:#fff;border:1px solid #fff;border-radius:4px;cursor:pointer;">Close</button>
+    </div>
+  </div>
+  <div id="docPreviewContent" style="width:100%;max-width:900px;flex:1;display:flex;align-items:center;justify-content:center;"></div>
+</div>
+
+<div id="signatureModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:10002; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:8px; padding:24px; max-width:500px; width:90%; margin:auto;">
+    <h3 style="font-family:var(--font-heading); font-size:16px; margin:0 0 4px; text-transform:uppercase; letter-spacing:0.05em;">Sign to Approve</h3>
+    <p id="signatureItemName" style="font-family:var(--font-body); font-size:13px; color:var(--text-secondary); margin:0 0 16px;"></p>
+    <div style="border:1px solid var(--border); border-radius:6px; background:#fafafa; margin-bottom:12px;">
+      <canvas id="signatureCanvas" width="460" height="200" style="width:100%; display:block; cursor:crosshair;"></canvas>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <button id="signatureClearBtn" style="font-family:var(--font-nav); font-size:10px; text-transform:uppercase; letter-spacing:0.1em; background:none; border:1px solid var(--border); padding:8px 16px; border-radius:4px; cursor:pointer;">Clear</button>
+      <div style="display:flex; gap:8px;">
+        <button id="signatureCancelBtn" style="font-family:var(--font-nav); font-size:10px; text-transform:uppercase; letter-spacing:0.1em; background:none; border:1px solid var(--border); padding:8px 16px; border-radius:4px; cursor:pointer;">Cancel</button>
+        <button id="signatureConfirmBtn" style="font-family:var(--font-nav); font-size:10px; text-transform:uppercase; letter-spacing:0.1em; background:#1a1a1a; color:#FAF9F6; border:none; padding:8px 20px; border-radius:4px; cursor:pointer;">Confirm &amp; Approve</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs (compat mode) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

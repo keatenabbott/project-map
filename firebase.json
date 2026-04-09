@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "site": "dune-homes-portal-19e69",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "README.md",
+      "node_modules"
+    ]
+  }
+}

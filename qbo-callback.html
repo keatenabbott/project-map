@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connecting QuickBooks...</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: #FAF9F6; color: #1a1a1a; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+  .card { text-align: center; max-width: 400px; padding: 40px; }
+  h1 { font-size: 24px; font-weight: 800; margin: 0 0 8px; letter-spacing: 0.05em; }
+  p { color: #8A7B6B; font-size: 14px; margin: 0 0 20px; }
+  .spinner { border: 3px solid #e5e3de; border-top: 3px solid #1a1a1a; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite; margin: 20px auto; }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  .success { color: #2d7d46; font-weight: 600; }
+  .error { color: #e74c3c; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>DUNE HOMES</h1>
+  <p id="status">Connecting QuickBooks...</p>
+  <div class="spinner" id="spinner"></div>
+  <p id="message"></p>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyA2fcaIwuU4S4yor9qFhuX28Y4N-75fvgw",
+    authDomain: "dune-homes-portal-19e69.firebaseapp.com",
+    projectId: "dune-homes-portal-19e69",
+    storageBucket: "dune-homes-portal-19e69.firebasestorage.app",
+    messagingSenderId: "363389549163",
+    appId: "1:363389549163:web:1cb2c79da1b17dea7c0f2e"
+  });
+
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    var code = params.get('code');
+    var state = params.get('state');
+    var realmId = params.get('realmId');
+    var error = params.get('error');
+
+    var statusEl = document.getElementById('status');
+    var spinnerEl = document.getElementById('spinner');
+    var messageEl = document.getElementById('message');
+
+    if (error) {
+      spinnerEl.style.display = 'none';
+      statusEl.innerHTML = '<span class="error">Connection Failed</span>';
+      messageEl.textContent = 'QuickBooks denied the connection: ' + error;
+      return;
+    }
+
+    if (!code || !realmId) {
+      spinnerEl.style.display = 'none';
+      statusEl.innerHTML = '<span class="error">Connection Failed</span>';
+      messageEl.textContent = 'Missing authorization data. Please try again from the portal.';
+      return;
+    }
+
+    // Wait for auth state — the user should still be logged in via Firebase
+    firebase.auth().onAuthStateChanged(function(user) {
+      if (!user) {
+        spinnerEl.style.display = 'none';
+        statusEl.innerHTML = '<span class="error">Not Logged In</span>';
+        messageEl.textContent = 'Please log into the portal first, then try connecting QuickBooks again.';
+        return;
+      }
+
+      var db = firebase.firestore();
+      // Use unique doc ID so onCreate trigger fires every time
+      var docId = 'auth_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      var pendingRef = db.collection('_qboAuth').doc(docId);
+      pendingRef.set({
+        code: code,
+        state: state || '',
+        realmId: realmId,
+        callbackUrl: window.location.href,
+        requestedBy: user.uid,
+        status: 'pending',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(function() {
+        // Listen for the trigger to complete
+        var timeoutId = setTimeout(function() {
+          unsubscribe();
+          spinnerEl.style.display = 'none';
+          statusEl.innerHTML = '<span class="error">Timed Out</span>';
+          messageEl.textContent = 'The connection took too long. Please try again.';
+        }, 30000);
+
+        var unsubscribe = pendingRef.onSnapshot(function(snap) {
+          if (!snap.exists) return;
+          var data = snap.data();
+          if (data.status === 'complete') {
+            clearTimeout(timeoutId);
+            unsubscribe();
+            spinnerEl.style.display = 'none';
+            statusEl.innerHTML = '<span class="success">QuickBooks Connected!</span>';
+            messageEl.textContent = 'Redirecting back to the portal...';
+            setTimeout(function() {
+              window.location.href = 'https://portal.dunehomes.com/?qbo=connected';
+            }, 1500);
+          } else if (data.status === 'error') {
+            clearTimeout(timeoutId);
+            unsubscribe();
+            spinnerEl.style.display = 'none';
+            statusEl.innerHTML = '<span class="error">Connection Failed</span>';
+            messageEl.textContent = data.error || 'Failed to complete QuickBooks connection.';
+          }
+        });
+      }).catch(function(err) {
+        spinnerEl.style.display = 'none';
+        statusEl.innerHTML = '<span class="error">Connection Failed</span>';
+        messageEl.textContent = err.message || 'Failed to write authorization data.';
+      });
+    });
+  })();
+</script>
+</body>
+</html>
