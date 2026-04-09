@@ -536,84 +536,160 @@
     showToast('Phases PDF downloaded.');
   }
 
-  // Download a single change order as a standalone PDF (client-facing)
+  // Download a single change order as a polished standalone PDF
   function downloadSingleChangeOrderPdf(project, co) {
     try {
       var jsPDF = window.jspdf.jsPDF;
-      var doc = new jsPDF('portrait', 'mm', 'letter');
-      var y = generatePdfHeader(doc, project);
-      var costNum = Number(co.costImpact) || 0;
-      var costStr = costNum === 0 ? '$0.00' : ((costNum < 0 ? '-$' : '+$') + Math.abs(costNum).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-      var statusLabel = (co.status || 'pending').charAt(0).toUpperCase() + (co.status || 'pending').slice(1);
-      // Title & status
+      var doc  = new jsPDF('portrait', 'mm', 'letter');
+      var pw   = doc.internal.pageSize.getWidth();   // 215.9
+      var ph   = doc.internal.pageSize.getHeight();  // 279.4
+      var ml   = 16, mr = 16, cw = pw - ml - mr;    // content width ~184
+      var y    = generatePdfHeader(doc, project);
+
+      // Helpers
+      var accent  = [196, 165, 123];
+      var dark    = [26, 26, 26];
+      var mid     = [100, 100, 100];
+      var light   = [180, 180, 180];
+      var offWhite = [250, 249, 246];
+      var borderC  = [229, 227, 222];
+
+      var costNum    = Number(co.costImpact) || 0;
+      var costStr    = costNum === 0 ? '$0.00' : ((costNum < 0 ? '−$' : '+$') + Math.abs(costNum).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      var status     = co.status || 'pending';
+      var statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
+      var fmtDate = function(ts) {
+        if (!ts) return '—';
+        var d = ts.toDate ? ts.toDate() : new Date(ts);
+        return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      };
+
+      // ── Section label ───────────────────────────────────────────────────────────────
+      y += 4;
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.setTextColor(26, 26, 26);
-      doc.text('CHANGE ORDER', 14, y);
-      y += 7;
-      doc.setFontSize(10);
-      doc.text(co.title || 'Change Order', 14, y);
+      doc.setFontSize(7);
+      doc.setTextColor.apply(doc, accent);
+      doc.text('CHANGE ORDER', ml, y);
       y += 6;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      var meta = 'Status: ' + statusLabel + '   Cost Impact: ' + costStr;
-      if (co.createdAt) {
-        var d = co.createdAt.toDate ? co.createdAt.toDate() : new Date(co.createdAt);
-        meta += '   Created: ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      }
-      doc.text(meta, 14, y);
+
+      // ── Title ──────────────────────────────────────────────────────────────────────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor.apply(doc, dark);
+      var titleLines = doc.splitTextToSize(co.title || 'Change Order', cw - 40);
+      doc.text(titleLines, ml, y);
+      y += titleLines.length * 8 + 4;
+
+      // ── Info grid: 4 cells ──────────────────────────────────────────────────────────────
+      var cellW  = cw / 4;
+      var cellH  = 16;
+      var cells  = [
+        { label: 'STATUS', value: statusLabel, color: status === 'approved' ? [6,95,70] : (status === 'denied' ? [153,27,27] : [146,64,14]) },
+        { label: 'COST IMPACT', value: costStr,  color: costNum > 0 ? [146,64,14] : (costNum < 0 ? [6,95,70] : dark) },
+        { label: 'DATE CREATED',  value: fmtDate(co.createdAt),  color: dark },
+        { label: 'DATE RESPONDED', value: fmtDate(co.respondedAt), color: dark }
+      ];
+      // Light background strip
+      doc.setFillColor.apply(doc, offWhite);
+      doc.rect(ml, y, cw, cellH, 'F');
+      doc.setDrawColor.apply(doc, borderC);
+      doc.setLineWidth(0.2);
+      doc.rect(ml, y, cw, cellH, 'S');
+      cells.forEach(function(cell, i) {
+        var cx = ml + i * cellW;
+        // Vertical divider
+        if (i > 0) { doc.setDrawColor.apply(doc, borderC); doc.line(cx, y, cx, y + cellH); }
+        // Label
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6);
+        doc.setTextColor.apply(doc, light);
+        doc.text(cell.label, cx + 4, y + 5);
+        // Value
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor.apply(doc, cell.color);
+        doc.text(cell.value, cx + 4, y + 12);
+      });
+      y += cellH + 10;
+
+      // ── Divider ───────────────────────────────────────────────────────────────────────
+      doc.setDrawColor.apply(doc, borderC);
+      doc.setLineWidth(0.3);
+      doc.line(ml, y, pw - mr, y);
       y += 8;
-      // Description
-      if (co.description) {
+
+      // ── Text block helper ─────────────────────────────────────────────────────────────────
+      var drawSection = function(label, text) {
+        if (!text) return;
+        // Accent left bar
+        doc.setFillColor.apply(doc, accent);
+        doc.rect(ml, y, 2, 4, 'F');
+        // Label
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(26, 26, 26);
-        doc.text('DESCRIPTION', 14, y);
-        y += 4;
+        doc.setFontSize(7);
+        doc.setTextColor.apply(doc, accent);
+        doc.text(label, ml + 5, y + 3.5);
+        y += 8;
+        // Body text in a light box
+        var lines   = doc.splitTextToSize(text, cw - 8);
+        var boxH    = lines.length * 4.5 + 10;
+        doc.setFillColor.apply(doc, offWhite);
+        doc.rect(ml, y, cw, boxH, 'F');
         doc.setFont('helvetica', 'normal');
-        var descLines = doc.splitTextToSize(co.description, 182);
         doc.setFontSize(9);
-        doc.text(descLines, 14, y);
-        y += descLines.length * 4.5 + 6;
-      }
-      // Response note
-      if (co.responseNote) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(26, 26, 26);
-        doc.text('CLIENT RESPONSE', 14, y);
-        y += 4;
-        doc.setFont('helvetica', 'normal');
-        var noteLines = doc.splitTextToSize(co.responseNote, 182);
-        doc.setFontSize(9);
-        doc.text(noteLines, 14, y);
-        y += noteLines.length * 4.5 + 8;
-      }
-      // Signature
+        doc.setTextColor.apply(doc, dark);
+        doc.text(lines, ml + 4, y + 7);
+        y += boxH + 8;
+      };
+
+      drawSection('SCOPE OF WORK', co.description);
+      drawSection('CLIENT RESPONSE', co.responseNote);
+
+      // ── Signature block ────────────────────────────────────────────────────────────────
       if (co.signature) {
-        if (y + 35 > doc.internal.pageSize.getHeight() - 16) { doc.addPage(); y = 20; }
+        if (y + 48 > ph - 20) { doc.addPage(); y = 20; }
+        // Label
+        doc.setFillColor.apply(doc, accent);
+        doc.rect(ml, y, 2, 4, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor.apply(doc, accent);
+        doc.text('CLIENT SIGNATURE', ml + 5, y + 3.5);
+        y += 10;
+        // Signature box
+        var sigBoxW = 90, sigBoxH = 26;
+        doc.setFillColor.apply(doc, offWhite);
+        doc.setDrawColor.apply(doc, borderC);
+        doc.setLineWidth(0.2);
+        doc.rect(ml, y, sigBoxW, sigBoxH, 'FD');
+        try { doc.addImage(co.signature, 'PNG', ml + 4, y + 3, 60, 18); } catch(e) {}
+        // Signer name + date to the right
+        var sigMeta1 = co.signedBy || '';
+        var sigMeta2 = co.signedAt ? fmtDate(co.signedAt) : '';
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.setTextColor(26, 26, 26);
-        doc.text('CLIENT SIGNATURE', 14, y);
-        y += 4;
+        doc.setTextColor.apply(doc, dark);
+        if (sigMeta1) doc.text(sigMeta1, ml + sigBoxW + 6, y + 11);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
-        doc.setTextColor(100, 100, 100);
-        var sigMeta = (co.signedBy || '') + (co.signedAt ? '  —  ' + (co.signedAt.toDate ? co.signedAt.toDate() : new Date(co.signedAt)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
-        if (sigMeta) doc.text(sigMeta, 14, y);
-        y += 4;
-        try { doc.addImage(co.signature, 'PNG', 14, y, 50, 14); } catch(e) {}
-        y += 16;
-        doc.setDrawColor(229, 227, 222);
-        doc.line(14, y, 64, y);
+        doc.setTextColor.apply(doc, mid);
+        if (sigMeta2) doc.text(sigMeta2, ml + sigBoxW + 6, y + 18);
+        y += sigBoxH + 10;
       }
-      // Footer
+
+      // ── Footer ───────────────────────────────────────────────────────────────────────
+      var fp = ph - 10;
+      doc.setDrawColor.apply(doc, borderC);
+      doc.setLineWidth(0.2);
+      doc.line(ml, fp - 4, pw - mr, fp - 4);
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Generated by ' + PORTAL_CONFIG.companyName + ' ' + PORTAL_CONFIG.tagline, 14, doc.internal.pageSize.getHeight() - 8);
-      var safeName = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
+      doc.setTextColor.apply(doc, light);
+      doc.text(PORTAL_CONFIG.companyName + '  ·  ' + PORTAL_CONFIG.tagline, ml, fp);
+      doc.text(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), pw - mr, fp, { align: 'right' });
+
+      var safeName  = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
       var safeTitle = (co.title || 'ChangeOrder').replace(/[^a-zA-Z0-9]/g, '_');
       doc.save(safeName + '_' + safeTitle + '_' + new Date().toISOString().slice(0, 10) + '.pdf');
       showToast('PDF downloaded.');
