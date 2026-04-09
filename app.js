@@ -2831,7 +2831,7 @@
         const target = btn.dataset.clientNav;
         clientView = target;
         var pid = userProfile.projectId;
-        if (target === 'budget') {
+        if (target === 'finances') {
           const proj = pid ? allProjects.find(p => p.id === pid) : null;
           const projHasSheet = proj && proj.googleSheetUrl && extractSheetId(proj.googleSheetUrl);
           if (projHasSheet) {
@@ -2845,6 +2845,8 @@
           } else if (firestoreBudgetItems.length === 0 && !firestoreBudgetLoading) {
             if (pid) { clientView = target; loadBudgetItems(pid); return; }
           }
+          // Invoices are pre-loaded on login; re-load if somehow missing
+          if (currentInvoices.length === 0 && !invoicesLoading && pid) loadInvoices(pid);
         }
         if (target === 'photos' && projectPhotos.length === 0 && !photosLoading) {
           if (pid) { loadPhotos(pid); return; }
@@ -2863,9 +2865,6 @@
             return;
           }
         }
-        if (target === 'invoices' && currentInvoices.length === 0 && !invoicesLoading) {
-          if (pid) { loadInvoices(pid); return; }
-        }
         if (target === 'updates' && currentMessages.length === 0 && !messagesLoading) {
           if (pid) { loadMessages(pid); return; }
         }
@@ -2873,9 +2872,6 @@
         render();
         if (target === 'updates' && pid) {
           bindUpdatesEvents(pid, 'client');
-        }
-        if (target === 'invoices') {
-          bindClientInvoiceEvents();
         }
         if (target === 'changeOrders') {
           bindClientChangeOrderEvents();
