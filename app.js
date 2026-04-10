@@ -3773,7 +3773,7 @@
             </div>
           </div>
           <span class="admin-card-link">→ Manage Project</span>
-              <button onclick="deleteProject('${project.id}', '${escapeHtml(project.name)}')" style="display:block;margin-top:12px;padding:6px 14px;background:transparent;color:#e74c3c;border:1px solid #e74c3c;border-radius:4px;font-family:var(--font-nav);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;cursor:pointer;" onmouseover="this.style.background='#e74c3c';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#e74c3c'">✗ Delete Project</button>
+              <button onclick="deleteProject('${project.id}', '${escapeHtml(project.name)}')" style="display:block;margin-top:12px;padding:4px 10px;background:transparent;color:var(--text-tertiary);border:1px solid var(--border);border-radius:4px;font-family:var(--font-nav);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='#e74c3c';this.style.color='#e74c3c'" onmouseout="this.style.borderColor='';this.style.color=''">Delete</button>
         </div>
       `;
     });
@@ -4882,7 +4882,7 @@
     html += '<form id="photoUploadForm">';
     html += '<div class="admin-form-row">';
     html += '<div class="admin-form-group"><label>Photo File</label>';
-    html += '<input class="admin-input" type="file" name="photoFile" accept="image/*" required></div>';
+    html += '<div class="styled-file-upload"><div class="styled-file-upload-label"><strong>Choose a photo</strong> or drag it here</div><input type="file" name="photoFile" accept="image/*" required></div></div>';
     html += '<div class="admin-form-group"><label>Caption</label>';
     html += '<input class="admin-input" type="text" name="caption" placeholder="Describe the photo"></div>';
     html += '</div>';
@@ -4967,7 +4967,7 @@
     html += '<form id="docUploadForm">';
     html += '<div class="admin-form-row">';
     html += '<div class="admin-form-group"><label>File</label>';
-    html += '<input class="admin-input" type="file" name="docFile" required></div>';
+    html += '<div class="styled-file-upload"><div class="styled-file-upload-label"><strong>Choose a file</strong> or drag it here</div><input type="file" name="docFile" required></div></div>';
     html += '<div class="admin-form-group"><label>Category</label>';
     html += '<select class="admin-select" name="category">';
     DOC_CATEGORIES.forEach(function(c) { html += '<option value="' + c + '">' + c + '</option>'; });
@@ -5075,7 +5075,7 @@
     html += '</div>';
     html += '<div class="admin-form-row">';
     html += '<div class="admin-form-group"><label>Image (optional)</label>';
-    html += '<input class="admin-input" type="file" name="selImage" accept="image/*"></div>';
+    html += '<div class="styled-file-upload"><div class="styled-file-upload-label"><strong>Choose an image</strong> or drag it here</div><input type="file" name="selImage" accept="image/*"></div></div>';
     html += '<div class="admin-form-group"><label>Notes</label>';
     html += '<input class="admin-input" type="text" name="selNotes" placeholder="Optional notes"></div>';
     html += '</div>';
@@ -6043,7 +6043,7 @@
     html += '<form id="empDocUploadForm">';
     html += '<div class="admin-form-row">';
     html += '<div class="admin-form-group"><label>File</label>';
-    html += '<input class="admin-input" type="file" name="docFile" required></div>';
+    html += '<div class="styled-file-upload"><div class="styled-file-upload-label"><strong>Choose a file</strong> or drag it here</div><input type="file" name="docFile" required></div></div>';
     html += '<div class="admin-form-group"><label>Category</label>';
     html += '<select class="admin-select" name="category">';
     DOC_CATEGORIES.forEach(function(c) { html += '<option value="' + c + '">' + c + '</option>'; });
@@ -8110,5 +8110,20 @@
         };
       });
     };
+
+  // ── Styled file upload: show filename on change ──────────────────────────
+  document.addEventListener('change', function(e) {
+    if (e.target.type === 'file' && e.target.closest('.styled-file-upload')) {
+      var zone = e.target.closest('.styled-file-upload');
+      var label = zone.querySelector('.styled-file-upload-label');
+      if (e.target.files && e.target.files.length > 0) {
+        label.textContent = e.target.files[0].name;
+        zone.classList.add('has-file');
+      } else {
+        label.innerHTML = '<strong>Choose a file</strong> or drag it here';
+        zone.classList.remove('has-file');
+      }
+    }
+  });
 
 })();
