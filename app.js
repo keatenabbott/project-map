@@ -78,15 +78,27 @@
   // ========================================
   // URL HASH ROUTING (persist view on refresh)
   // ========================================
-  // push=true adds a history entry (navigating to a new place)
-  // push=false replaces the current entry (tab switch within same project)
+  // Client tab → hash segment mapping
+  var CLIENT_TAB_HASH = {
+    dashboard: 'home', finances: 'finances', updates: 'updates',
+    changeOrders: 'approvals', selections: 'selections', documents: 'documents', photos: 'photos'
+  };
+  var CLIENT_HASH_TAB = {};
+  Object.keys(CLIENT_TAB_HASH).forEach(function(k) { CLIENT_HASH_TAB[CLIENT_TAB_HASH[k]] = k; });
+
+  // push=true adds a history entry, push=false replaces current entry
   function updateHash(push) {
-    if (appState !== 'admin') return;
-    var hash;
-    if (adminView === 'detail' && adminSelectedProject) {
-      hash = '#project/' + adminSelectedProject + '/' + (adminDetailTab || 'details');
+    var hash = '#';
+    if (appState === 'admin') {
+      if (adminView === 'detail' && adminSelectedProject) {
+        hash = '#project/' + adminSelectedProject + '/' + (adminDetailTab || 'details');
+      } else {
+        hash = '#admin';
+      }
+    } else if (appState === 'client') {
+      hash = '#' + (CLIENT_TAB_HASH[clientView] || 'home');
     } else {
-      hash = '#admin';
+      return;
     }
     if (push) {
       history.pushState(null, '', hash);
@@ -97,22 +109,28 @@
 
   function restoreFromHash() {
     var hash = (location.hash || '').replace('#', '');
-    if (hash.startsWith('project/')) {
-      var parts = hash.split('/');
-      var pid   = parts[1];
-      var tab   = parts[2] || 'details';
-      if (!pid) return;
-      var project = allProjects.find(function(p) { return p.id === pid; });
-      if (!project) return;
-      adminSelectedProject = pid;
-      adminView = 'detail';
-      adminDetailTab = tab;
-      firestoreBudgetItems = [];
-      budgetLoadedForProject = null;
-      currentMessages = [];
-    } else if (hash === 'admin') {
-      adminView = 'overview';
-      adminSelectedProject = null;
+    if (appState === 'admin') {
+      if (hash.startsWith('project/')) {
+        var parts = hash.split('/');
+        var pid   = parts[1];
+        var tab   = parts[2] || 'details';
+        if (!pid) return;
+        var project = allProjects.find(function(p) { return p.id === pid; });
+        if (!project) return;
+        adminSelectedProject = pid;
+        adminView = 'detail';
+        adminDetailTab = tab;
+        firestoreBudgetItems = [];
+        budgetLoadedForProject = null;
+        currentMessages = [];
+      } else if (hash === 'admin') {
+        adminView = 'overview';
+        adminSelectedProject = null;
+      }
+    } else if (appState === 'client') {
+      if (CLIENT_HASH_TAB[hash]) {
+        clientView = CLIENT_HASH_TAB[hash];
+      }
     }
   }
 
@@ -149,16 +167,19 @@
 
   // Handle browser back / forward buttons
   window.addEventListener('popstate', function() {
-    if (appState !== 'admin') return;
-    var prevProject = adminSelectedProject;
-    restoreFromHash();
-    // If we moved to a different project, clear stale data
-    if (adminSelectedProject !== prevProject) {
-      firestoreBudgetItems = [];
-      budgetLoadedForProject = null;
-      currentMessages = [];
+    if (appState === 'admin') {
+      var prevProject = adminSelectedProject;
+      restoreFromHash();
+      if (adminSelectedProject !== prevProject) {
+        firestoreBudgetItems = [];
+        budgetLoadedForProject = null;
+        currentMessages = [];
+      }
+      render();
+    } else if (appState === 'client') {
+      restoreFromHash();
+      render();
     }
-    render();
   });
   let budgetCategoryOpen = {};  // { '01': true, '05': false } — template budget expand state
   let budgetSaveTimer = null;   // debounce handle for budget input saves
@@ -3451,6 +3472,7 @@
       btn.addEventListener('click', () => {
         const target = btn.dataset.clientNav;
         clientView = target;
+        updateHash(false);
         var pid = userProfile.projectId;
         if (target === 'finances') {
           const proj = pid ? allProjects.find(p => p.id === pid) : null;
@@ -7923,6 +7945,7 @@
             ]);
           }
           appState = 'client';
+          restoreFromHash(); // restore last client tab from URL
         }
 
         render();
