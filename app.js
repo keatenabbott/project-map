@@ -78,31 +78,57 @@
   // ========================================
   // URL HASH ROUTING (persist view on refresh)
   // ========================================
-  function updateHash() {
+  // push=true adds a history entry (navigating to a new place)
+  // push=false replaces the current entry (tab switch within same project)
+  function updateHash(push) {
     if (appState !== 'admin') return;
+    var hash;
     if (adminView === 'detail' && adminSelectedProject) {
-      history.replaceState(null, '', '#project/' + adminSelectedProject + '/' + (adminDetailTab || 'details'));
+      hash = '#project/' + adminSelectedProject + '/' + (adminDetailTab || 'details');
     } else {
-      history.replaceState(null, '', '#admin');
+      hash = '#admin';
+    }
+    if (push) {
+      history.pushState(null, '', hash);
+    } else {
+      history.replaceState(null, '', hash);
     }
   }
 
   function restoreFromHash() {
     var hash = (location.hash || '').replace('#', '');
-    if (!hash.startsWith('project/')) return;
-    var parts = hash.split('/');
-    var pid   = parts[1];
-    var tab   = parts[2] || 'details';
-    if (!pid) return;
-    var project = allProjects.find(function(p) { return p.id === pid; });
-    if (!project) return;
-    adminSelectedProject = pid;
-    adminView = 'detail';
-    adminDetailTab = tab;
-    firestoreBudgetItems = [];
-    budgetLoadedForProject = null;
-    currentMessages = [];
+    if (hash.startsWith('project/')) {
+      var parts = hash.split('/');
+      var pid   = parts[1];
+      var tab   = parts[2] || 'details';
+      if (!pid) return;
+      var project = allProjects.find(function(p) { return p.id === pid; });
+      if (!project) return;
+      adminSelectedProject = pid;
+      adminView = 'detail';
+      adminDetailTab = tab;
+      firestoreBudgetItems = [];
+      budgetLoadedForProject = null;
+      currentMessages = [];
+    } else if (hash === 'admin') {
+      adminView = 'overview';
+      adminSelectedProject = null;
+    }
   }
+
+  // Handle browser back / forward buttons
+  window.addEventListener('popstate', function() {
+    if (appState !== 'admin') return;
+    var prevProject = adminSelectedProject;
+    restoreFromHash();
+    // If we moved to a different project, clear stale data
+    if (adminSelectedProject !== prevProject) {
+      firestoreBudgetItems = [];
+      budgetLoadedForProject = null;
+      currentMessages = [];
+    }
+    render();
+  });
   let budgetCategoryOpen = {};  // { '01': true, '05': false } — template budget expand state
   let budgetSaveTimer = null;   // debounce handle for budget input saves
   let budgetLoadedForProject = null; // tracks which projectId has been loaded into firestoreBudgetItems
@@ -6225,7 +6251,7 @@
         firestoreBudgetItems = [];
         budgetLoadedForProject = null;
         currentMessages = [];
-        updateHash();
+        updateHash(true); // push — so back button returns to project list
         render();
       });
     });
@@ -6239,7 +6265,7 @@
         firestoreBudgetItems = [];
         budgetLoadedForProject = null;
         currentMessages = [];
-        updateHash();
+        updateHash(true); // push
         render();
       });
     });
@@ -6263,7 +6289,7 @@
       projectDocuments = [];
       projectSelections = [];
       currentChangeOrders = [];
-      updateHash();
+      updateHash(true); // push — forward button can return to this project
       currentInvoices = [];
       currentMessages = [];
       lightboxPhoto = null;
