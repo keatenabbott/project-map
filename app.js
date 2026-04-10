@@ -50,10 +50,10 @@
   // Apply page title from config
   document.title = PORTAL_CONFIG.companyName + ' — ' + PORTAL_CONFIG.tagline;
 
-  // Update favicon dynamically from config
+  // Update favicon dynamically from config — clean initial-based mark
   (function() {
-    // Topo-inspired favicon mark
-    var svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='" + PORTAL_CONFIG.primaryColor + "'/><g fill='none' stroke='" + PORTAL_CONFIG.accentColor + "' stroke-width='1.2' stroke-linecap='round'><path d='M7 22 Q10 18 16 15 Q22 12 25 10'/><path d='M9 25 Q13 20 16 18 Q20 16 24 14'/><path d='M6 19 Q9 15 16 12 Q23 9 26 7'/></g><circle cx='16' cy='14' r='2.5' fill='" + PORTAL_CONFIG.accentColor + "'/></svg>";
+    var initial = (PORTAL_CONFIG.companyName || 'P').charAt(0);
+    var svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='" + PORTAL_CONFIG.primaryColor + "'/><text x='16' y='22' text-anchor='middle' font-family='Arial,sans-serif' font-size='18' font-weight='700' fill='" + PORTAL_CONFIG.accentColor + "'>" + initial + "</text></svg>";
     var link = document.querySelector("link[rel='icon']");
     if (link) link.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
   })();
@@ -2488,7 +2488,7 @@
     return `
       <div class="setup-page">
         <div class="setup-container">
-          <div class="login-brand"><svg viewBox='0 0 22 17' width='22' height='17' fill='none' stroke='currentColor' stroke-width='1.4' stroke-linecap='round' style='opacity:0.6;margin-right:8px;vertical-align:middle;'><path d='M1 13 Q5 9 11 7 Q17 5 21 3'/><path d='M2 16 Q6 12 11 10 Q16 8 20 6'/><circle cx='11' cy='8' r='1.8' fill='currentColor' stroke='none'/></svg>${PORTAL_CONFIG.companyName}</div>
+          <div class="login-brand">${PORTAL_CONFIG.companyName}</div>
           <div class="login-subtitle">${PORTAL_CONFIG.tagline}</div>
           <div class="setup-desc">
             Welcome! No admin account exists yet.<br>
@@ -2547,7 +2547,7 @@
     return `
       <div class="login-page">
         <div class="login-container">
-          <div class="login-brand"><svg viewBox='0 0 22 17' width='22' height='17' fill='none' stroke='currentColor' stroke-width='1.4' stroke-linecap='round' style='opacity:0.6;margin-right:8px;vertical-align:middle;'><path d='M1 13 Q5 9 11 7 Q17 5 21 3'/><path d='M2 16 Q6 12 11 10 Q16 8 20 6'/><circle cx='11' cy='8' r='1.8' fill='currentColor' stroke='none'/></svg>${PORTAL_CONFIG.companyName}</div>
+          <div class="login-brand">${PORTAL_CONFIG.companyName}</div>
           <div class="login-subtitle">${PORTAL_CONFIG.tagline}</div>
           <form class="login-form" id="loginForm">
             <div class="form-group">
@@ -2604,7 +2604,7 @@
     return `
       <div class="login-page">
         <div class="login-container">
-          <div class="login-brand"><svg viewBox='0 0 22 17' width='22' height='17' fill='none' stroke='currentColor' stroke-width='1.4' stroke-linecap='round' style='opacity:0.6;margin-right:8px;vertical-align:middle;'><path d='M1 13 Q5 9 11 7 Q17 5 21 3'/><path d='M2 16 Q6 12 11 10 Q16 8 20 6'/><circle cx='11' cy='8' r='1.8' fill='currentColor' stroke='none'/></svg>${PORTAL_CONFIG.companyName}</div>
+          <div class="login-brand">${PORTAL_CONFIG.companyName}</div>
           <div class="login-subtitle">Password Reset</div>
           <form class="login-form" id="forgotForm">
             <div class="form-group">
@@ -2659,7 +2659,7 @@
     const project = allProjects.find(p => p.id === userProfile.projectId);
     return `
       <nav class="nav-bar">
-        <div class="nav-logo"><svg viewBox='0 0 18 14' width='18' height='14' fill='none' stroke='currentColor' stroke-width='1.2' stroke-linecap='round' style='opacity:0.7;margin-right:7px;vertical-align:middle;'><path d='M1 11 Q4 8 9 6 Q14 4 17 2'/><path d='M2 13 Q5 10 9 8 Q13 6 16 5'/><circle cx='9' cy='6.5' r='1.4' fill='currentColor' stroke='none'/></svg>${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
+        <div class="nav-logo">${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
         <div class="nav-links-wrap"><div class="nav-links">
           ${project ? `
             <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Home</button>
@@ -2700,7 +2700,7 @@
         <div class="client-footer-item"><a href="mailto:${escapeAttr(PORTAL_CONFIG.supportEmail)}">${escapeHtml(PORTAL_CONFIG.supportEmail)}</a></div>
         ${phoneItem}
         <div class="client-footer-dot"></div>
-        <div class="client-footer-item"><a href="${escapeAttr(PORTAL_CONFIG.portalUrl)}" target="_blank" rel="noopener">${escapeHtml(portalDomain)}</a></div>
+        <div class="client-footer-item" style="opacity:0.5;">Powered by Project Map</div>
       </footer>
     `;
   }
@@ -3829,7 +3829,7 @@
 
     const clientNav = `
       <nav class="nav-bar">
-        <div class="nav-logo"><svg viewBox='0 0 18 14' width='18' height='14' fill='none' stroke='currentColor' stroke-width='1.2' stroke-linecap='round' style='opacity:0.7;margin-right:7px;vertical-align:middle;'><path d='M1 11 Q4 8 9 6 Q14 4 17 2'/><path d='M2 13 Q5 10 9 8 Q13 6 16 5'/><circle cx='9' cy='6.5' r='1.4' fill='currentColor' stroke='none'/></svg>${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
+        <div class="nav-logo">${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
         <div class="nav-links">
           <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Home</button>
           <button class="nav-link ${clientView === 'finances' ? 'active' : ''}" data-client-nav="finances">Finances</button>
