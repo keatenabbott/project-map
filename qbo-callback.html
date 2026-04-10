@@ -17,24 +17,20 @@
 </head>
 <body>
 <div class="card">
-  <h1>DUNE HOMES</h1>
+  <h1 id="brandName">PROJECT MAP</h1>
   <p id="status">Connecting QuickBooks...</p>
   <div class="spinner" id="spinner"></div>
   <p id="message"></p>
 </div>
 
+<script src="config.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
-  firebase.initializeApp({
-    apiKey: "AIzaSyA2fcaIwuU4S4yor9qFhuX28Y4N-75fvgw",
-    authDomain: "dune-homes-portal-19e69.firebaseapp.com",
-    projectId: "dune-homes-portal-19e69",
-    storageBucket: "dune-homes-portal-19e69.firebasestorage.app",
-    messagingSenderId: "363389549163",
-    appId: "1:363389549163:web:1cb2c79da1b17dea7c0f2e"
-  });
+  // Use shared config
+  firebase.initializeApp(FIREBASE_CONFIG);
+  document.getElementById('brandName').textContent = PORTAL_CONFIG.companyName || 'PROJECT MAP';
 
   (function() {
     var params = new URLSearchParams(window.location.search);
@@ -61,7 +57,6 @@
       return;
     }
 
-    // Wait for auth state — the user should still be logged in via Firebase
     firebase.auth().onAuthStateChanged(function(user) {
       if (!user) {
         spinnerEl.style.display = 'none';
@@ -71,7 +66,6 @@
       }
 
       var db = firebase.firestore();
-      // Use unique doc ID so onCreate trigger fires every time
       var docId = 'auth_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
       var pendingRef = db.collection('_qboAuth').doc(docId);
       pendingRef.set({
@@ -83,7 +77,6 @@
         status: 'pending',
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       }).then(function() {
-        // Listen for the trigger to complete
         var timeoutId = setTimeout(function() {
           unsubscribe();
           spinnerEl.style.display = 'none';
@@ -101,7 +94,7 @@
             statusEl.innerHTML = '<span class="success">QuickBooks Connected!</span>';
             messageEl.textContent = 'Redirecting back to the portal...';
             setTimeout(function() {
-              window.location.href = 'https://portal.dunehomes.com/?qbo=connected';
+              window.location.href = (PORTAL_CONFIG.portalUrl || window.location.origin) + '/?qbo=connected';
             }, 1500);
           } else if (data.status === 'error') {
             clearTimeout(timeoutId);

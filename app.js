@@ -1,5 +1,5 @@
 /* ========================================
-   DUNE HOMES CLIENT PORTAL — FIREBASE APP
+   PROJECT MAP — CLIENT PORTAL
    ======================================== */
 
 (function() {
@@ -24,21 +24,8 @@
     if (link) link.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
   })();
 
-  // ========================================
-  // FIREBASE CONFIG — Replace with your own
-  // ========================================
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyA2fcaIwuU4S4yor9qFhuX28Y4N-75fvgw",
-    authDomain: "dune-homes-portal-19e69.firebaseapp.com",
-    projectId: "dune-homes-portal-19e69",
-    storageBucket: "dune-homes-portal-19e69.firebasestorage.app",
-    messagingSenderId: "363389549163",
-    appId: "1:363389549163:web:1cb2c79da1b17dea7c0f2e"
-  };
-
-  // Initialize Firebase
-  const app = firebase.initializeApp(firebaseConfig);
+  // Initialize Firebase from config.js
+  const app = firebase.initializeApp(FIREBASE_CONFIG);
   const auth = firebase.auth();
   const db = firebase.firestore();
   const storage = firebase.storage();
@@ -2480,7 +2467,7 @@
             </div>
             <div class="form-group">
               <label for="setupEmail">Email</label>
-              <input type="email" id="setupEmail" class="form-input" placeholder="admin@dunehomes.com" autocomplete="email" required>
+              <input type="email" id="setupEmail" class="form-input" placeholder="admin@yourcompany.com" autocomplete="email" required>
             </div>
             <div class="form-group">
               <label for="setupPassword">Password</label>
@@ -6118,7 +6105,7 @@
             <div class="admin-form-row">
               <div class="admin-form-group admin-form-full">
                 <label>Email</label>
-                <input class="admin-input" type="email" name="email" placeholder="jordan@dunehomes.com" required>
+                <input class="admin-input" type="email" name="email" placeholder="name@email.com" required>
               </div>
             </div>
             <div class="admin-form-row">
@@ -7855,8 +7842,8 @@
   // ========================================
 
   function getQboAuthUrl() {
-    var clientId = 'ABVFODEYE2uPLLLPPD0jCkjOgC5Y3eZnL0DSKAlgRA3O8JCOSh';
-    var redirectUri = encodeURIComponent('https://portal.dunehomes.com/qbo-callback.html');
+    var clientId = PORTAL_CONFIG.qboClientId || '';
+    var redirectUri = encodeURIComponent(PORTAL_CONFIG.portalUrl + '/qbo-callback.html');
     var scope = encodeURIComponent('com.intuit.quickbooks.accounting');
     var state = Math.random().toString(36).substring(2, 18);
     return 'https://appcenter.intuit.com/connect/oauth2' +
