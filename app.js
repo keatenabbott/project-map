@@ -1719,7 +1719,7 @@
   function renderUpdatesTab(project, viewerRole) {
     // viewerRole: 'admin' | 'client' | 'employee'
     var headerHtml = viewerRole === 'client'
-      ? '<div class="welcome-header"><h1>Updates</h1><p>' + escapeHtml(project ? project.name : '') + '</p></div>'
+      ? '<div class="finances-page-header"><div class="finances-page-title">UPDATES</div><div class="finances-page-subtitle">' + escapeHtml(project ? project.name : '') + '</div></div>'
       : '<div class="budget-page-header"><h2 class="budget-page-title">Updates</h2><p class="budget-page-subtitle">' + escapeHtml(project ? project.name : '') + '</p></div>';
     var html = headerHtml + '<div class="admin-section">';
     if (messagesLoading) {
@@ -2684,10 +2684,17 @@
 
   function renderClientNoProject() {
     return `
-      <div class="welcome-header">
-        <h1>Welcome, ${escapeHtml(userProfile.name)}</h1>
-        <p>No active projects found. Contact your project manager for details.</p>
+      <div class="finances-page-header">
+        <div class="finances-page-title">WELCOME</div>
+        <div class="finances-page-subtitle">${escapeHtml((userProfile.name || '').split(' ')[0])}</div>
       </div>
+      <div class="finances-content-card"><div class="finances-content-card-body">
+        <div class="finances-invoices-empty">
+          <div class="finances-invoices-empty-icon">&#127968;</div>
+          <div class="finances-invoices-empty-title">No Active Projects</div>
+          <div class="finances-invoices-empty-msg">Contact your project manager and they'll get you set up here.</div>
+        </div>
+      </div></div>
     `;
   }
 
@@ -3046,7 +3053,7 @@
     // ── BUDGET BREAKDOWN CARD ─────────────────────────────────────────
     if (budgetLoaded) {
       html += '<div class="finances-content-card">';
-      html += '<div class="finances-content-card-header finances-content-card-header--dark">';
+      html += '<div class="finances-content-card-header finances-content-card-header--warm">';
       html += '<div class="finances-content-card-title">Budget Breakdown</div>';
       html += '<div class="finances-content-card-desc">Tap any category to expand line items.</div>';
       html += '</div>';
@@ -3153,10 +3160,7 @@
         : null;
 
       let sheetHtml = `
-        <div class="welcome-header">
-          <h1>Budget</h1>
-          <p>${escapeHtml(project.name)}</p>
-        </div>
+        <div class="budget-page-header"><h2 class="budget-page-title">Budget</h2><p class="budget-page-subtitle">${escapeHtml(project.name)}</p></div>
       `;
 
       if (budgetLoading) {
@@ -3220,10 +3224,7 @@
     // ── PORTAL EDITOR MODE (Firestore) ────────────────────────────
     if (firestoreBudgetLoading) {
       return `
-        <div class="welcome-header">
-          <h1>Budget</h1>
-          <p>${escapeHtml(project.name)}</p>
-        </div>
+        <div class="budget-page-header"><h2 class="budget-page-title">Budget</h2><p class="budget-page-subtitle">${escapeHtml(project.name)}</p></div>
         <div class="budget-loading">
           <div class="spinner-large"></div>
           <span class="budget-loading-text">Loading budget data...</span>
@@ -3233,10 +3234,7 @@
 
     if (firestoreBudgetItems.length === 0) {
       return `
-        <div class="welcome-header">
-          <h1>Budget</h1>
-          <p>${escapeHtml(project.name)}</p>
-        </div>
+        <div class="budget-page-header"><h2 class="budget-page-title">Budget</h2><p class="budget-page-subtitle">${escapeHtml(project.name)}</p></div>
         <div class="empty-state">
           <div class="empty-state-icon">📊</div>
           <div class="empty-state-title">Budget Coming Soon</div>
@@ -3250,10 +3248,7 @@
     const grouped = groupBudgetItemsByCategory();
 
     let html = `
-      <div class="welcome-header">
-        <h1>Budget</h1>
-        <p>${escapeHtml(project.name)}</p>
-      </div>
+      <div class="budget-page-header"><h2 class="budget-page-title">Budget</h2><p class="budget-page-subtitle">${escapeHtml(project.name)}</p></div>
       <div class="budget-summary">
         <div class="budget-summary-main">
           <div class="budget-summary-amounts">
@@ -3663,10 +3658,7 @@
 
     // ── Stats row ──
     var dashboardHtml = `
-      <div class="welcome-header">
-        <h1>Projects</h1>
-        <p>Overview of all active builds.</p>
-      </div>
+      <div class="budget-page-header"><h2 class="budget-page-title">Projects</h2><p class="budget-page-subtitle">Overview of all active builds.</p></div>
 
       <div class="dashboard-stats">
         <div class="dashboard-stat-card">
@@ -3846,12 +3838,13 @@
 
     let html = `
       <button class="admin-detail-back" id="adminBackBtn">← Back to Projects</button>
-      <div class="welcome-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div class="finances-page-header" style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:1px solid var(--border);">
         <div>
-          <h1>${escapeHtml(project.name)}</h1>
-          <p>${escapeHtml(project.location)}${client ? ' — ' + escapeHtml(client.name) : ''}</p>
+          <div class="finances-page-title">PROJECT</div>
+          <div class="finances-page-subtitle">${escapeHtml(project.name)}</div>
+          <div style="font-family:var(--font-nav);font-size:11px;color:var(--text-tertiary);margin-top:5px;">${escapeHtml(project.location)}${client ? ' — ' + escapeHtml(client.name) : ''}</div>
         </div>
-        <button class="btn btn-secondary btn-small" id="previewClientViewBtn" style="font-size:10px;white-space:nowrap;margin-top:4px;">👁 Preview Client View</button>
+        <button class="btn btn-secondary btn-small" id="previewClientViewBtn" style="font-size:10px;white-space:nowrap;margin-top:4px;">&#128065; Preview Client View</button>
       </div>
 
       <div class="admin-detail-tabs">
@@ -4891,7 +4884,7 @@
   }
 
   function renderClientPhotosTab(project) {
-    var html = '<div class="welcome-header"><h1>Photos</h1><p>' + escapeHtml(project.name) + '</p></div>';
+    var html = '<div class="finances-page-header"><div class="finances-page-title">PHOTOS</div><div class="finances-page-subtitle">' + escapeHtml(project.name) + '</div></div>';
     html += '<div class="admin-section">';
     if (photosLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading photos...</span></div>';
@@ -4970,16 +4963,16 @@
   }
 
   function renderClientDocumentsTab(project) {
-    var html = '<div class="welcome-header"><h1>Documents</h1><p>' + escapeHtml(project.name) + '</p></div>';
-    html += '<div class="admin-section">';
+    var html = '<div class="finances-page-header"><div class="finances-page-title">DOCUMENTS</div><div class="finances-page-subtitle">' + escapeHtml(project.name) + '</div></div>';
     if (documentsLoading) {
-      html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading documents...</span></div>';
+      html += '<div class="finances-content-card"><div class="finances-content-card-body"><div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading documents…</span></div></div></div>';
     } else if (projectDocuments.length === 0) {
-      html += '<div class="empty-state"><div class="empty-state-icon">\ud83d\udcc1</div><div class="empty-state-title">No Documents Yet</div><div class="empty-state-message">Plans, permits, contracts, and other project documents will be shared here.</div></div>';
+      html += '<div class="finances-content-card"><div class="finances-content-card-body">';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">&#128193;</div><div class="finances-invoices-empty-title">No Documents Yet</div><div class="finances-invoices-empty-msg">Plans, permits, contracts, and other project documents will be shared here as your project progresses.</div></div>';
+      html += '</div></div>';
     } else {
       html += renderDocumentList(false);
     }
-    html += '</div>';
     return html;
   }
 
@@ -4993,11 +4986,17 @@
     });
 
     var html = '';
-    DOC_CATEGORIES.forEach(function(catName) {
+    // Build ordered list of all categories (standard + custom)
+    var allCats = DOC_CATEGORIES.concat(Object.keys(grouped).filter(function(c) { return DOC_CATEGORIES.indexOf(c) < 0; }));
+    allCats.forEach(function(catName) {
       var docs = grouped[catName];
-      if (docs.length === 0) return;
-      html += '<div class="doc-category-group">';
-      html += '<div class="doc-category-title">' + escapeHtml(catName) + ' (' + docs.length + ')</div>';
+      if (!docs || docs.length === 0) return;
+      html += '<div class="finances-content-card" style="margin-bottom:16px;">';
+      html += '<div class="finances-content-card-header finances-content-card-header--warm">';
+      html += '<div class="finances-content-card-title">' + escapeHtml(catName) + '</div>';
+      html += '<div class="finances-content-card-desc">' + docs.length + ' document' + (docs.length !== 1 ? 's' : '') + '</div>';
+      html += '</div>';
+      html += '<div class="finances-content-card-body" style="padding:0;">';
       docs.forEach(function(doc) {
         html += '<div class="doc-list-item">';
         html += getDocIcon(doc.type);
@@ -5016,35 +5015,8 @@
         }
         html += '</div></div>';
       });
-      html += '</div>';
-    });
-
-    // Show any docs in custom categories
-    Object.keys(grouped).forEach(function(catName) {
-      if (DOC_CATEGORIES.indexOf(catName) >= 0) return;
-      var docs = grouped[catName];
-      if (docs.length === 0) return;
-      html += '<div class="doc-category-group">';
-      html += '<div class="doc-category-title">' + escapeHtml(catName) + ' (' + docs.length + ')</div>';
-      docs.forEach(function(doc) {
-        html += '<div class="doc-list-item">';
-        html += getDocIcon(doc.type);
-        html += '<div class="doc-info">';
-        html += '<div class="doc-name">' + escapeHtml(doc.filename) + '</div>';
-        html += '<div class="doc-meta">' + formatTimestampShort(doc.uploadedAt) + '</div>';
-        html += '</div>';
-        html += '<div class="doc-actions">';
-        if (isPreviewable(doc.type)) {
-          html += '<button class="doc-download-btn" onclick="openDocPreview(\'' + escapeAttr(doc.url) + '\', \'' + escapeAttr(doc.filename) + '\', \'' + doc.type + '\')">Preview</button>';
-        } else {
-          html += '<a href="' + escapeAttr(doc.url) + '" target="_blank" class="doc-download-btn">Download</a>';
-        }
-        if (isAdmin) {
-          html += '<button class="doc-delete-btn" data-delete-doc="' + doc.id + '">Delete</button>';
-        }
-        html += '</div></div>';
-      });
-      html += '</div>';
+      html += '</div>'; // card body
+      html += '</div>'; // card
     });
 
     return html;
@@ -5098,16 +5070,16 @@
   }
 
   function renderClientSelectionsTab(project) {
-    var html = '<div class="welcome-header"><h1>Selections</h1><p>' + escapeHtml(project.name) + '</p></div>';
-    html += '<div class="admin-section">';
+    var html = '<div class="finances-page-header"><div class="finances-page-title">SELECTIONS</div><div class="finances-page-subtitle">' + escapeHtml(project.name) + '</div></div>';
     if (selectionsLoading) {
-      html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading selections...</span></div>';
+      html += '<div class="finances-content-card"><div class="finances-content-card-body"><div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading selections…</span></div></div></div>';
     } else if (projectSelections.length === 0) {
-      html += '<div class="empty-state"><div class="empty-state-icon">\ud83c\udfa8</div><div class="empty-state-title">No Selections Yet</div><div class="empty-state-message">Your finishes and material selections will appear here for your review and approval.</div></div>';
+      html += '<div class="finances-content-card"><div class="finances-content-card-body">';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">&#127912;</div><div class="finances-invoices-empty-title">No Selections Yet</div><div class="finances-invoices-empty-msg">Your finishes and material selections will appear here for your review and approval.</div></div>';
+      html += '</div></div>';
     } else {
       html += renderSelectionsGrouped(false);
     }
-    html += '</div>';
     return html;
   }
 
@@ -5128,8 +5100,12 @@
       var items = grouped[catName];
       if (!items || items.length === 0) return;
 
-      html += '<div class="selection-category-group">';
-      html += '<div class="selection-category-title">' + escapeHtml(catName) + '</div>';
+      html += '<div class="finances-content-card" style="margin-bottom:16px;">';
+      html += '<div class="finances-content-card-header finances-content-card-header--warm">';
+      html += '<div class="finances-content-card-title">' + escapeHtml(catName) + '</div>';
+      html += '<div class="finances-content-card-desc">' + items.length + ' item' + (items.length !== 1 ? 's' : '') + '</div>';
+      html += '</div>';
+      html += '<div class="finances-content-card-body" style="padding:0;">';
 
       items.forEach(function(sel) {
         var statusClass = (sel.status || 'Pending').toLowerCase();
@@ -5178,7 +5154,8 @@
         }
         html += '</div>';
       });
-      html += '</div>';
+      html += '</div>'; // card body
+      html += '</div>'; // card
     });
     return html;
   }
@@ -5290,15 +5267,32 @@
   }
 
   function renderClientChangeOrders(project) {
+    var pageHdr = '<div class="finances-page-header"><div class="finances-page-title">APPROVALS</div><div class="finances-page-subtitle">' + escapeHtml(project.name) + '</div></div>';
+
     if (changeOrdersLoading) {
-      return '<div class="welcome-header"><h1>Change Orders</h1><p>' + escapeHtml(project.name) + '</p></div><div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading change orders...</span></div>';
+      return pageHdr + '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading change orders…</span></div>';
     }
 
-    var html = '<div class="welcome-header"><h1>Change Orders</h1><p>' + escapeHtml(project.name) + '</p></div>';
+    var html = pageHdr;
+
+    // Summary card
+    var coTotal = currentChangeOrders.length;
+    var coPending = currentChangeOrders.filter(function(co) { return co.status === 'pending'; }).length;
+    html += '<div class="finances-content-card" style="margin-bottom:20px;">';
+    html += '<div class="finances-content-card-header finances-content-card-header--warm">';
+    html += '<div class="finances-content-card-title">Change Orders</div>';
+    if (coTotal > 0) {
+      html += '<div class="finances-content-card-desc">' + coTotal + ' total' + (coPending > 0 ? ' · ' + coPending + ' pending your approval' : '') + '</div>';
+    }
+    html += '</div>';
+    html += '<div class="finances-content-card-body">';
     html += renderChangeOrdersSummaryBar(project, true);
+    html += '</div></div>';
 
     if (currentChangeOrders.length === 0) {
-      html += '<div class="empty-state"><div class="empty-state-icon">\ud83d\udccb</div><div class="empty-state-title">No Change Orders</div><div class="empty-state-message">Change orders will appear here if the scope or cost of your project changes. Your builder will notify you.</div></div>';
+      html += '<div class="finances-content-card"><div class="finances-content-card-body">';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">&#128203;</div><div class="finances-invoices-empty-title">No Change Orders</div><div class="finances-invoices-empty-msg">Change orders will appear here if the scope or cost of your project changes. Your builder will notify you.</div></div>';
+      html += '</div></div>';
       return html;
     }
 
@@ -5515,10 +5509,10 @@
 
   function renderClientInvoicesTab(project) {
     if (invoicesLoading) {
-      return '<div class="welcome-header"><h1>Invoices</h1><p>' + escapeHtml(project.name) + '</p></div><div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices...</span></div>';
+      return '<div class="finances-page-header"><div class="finances-page-title">INVOICES</div><div class="finances-page-subtitle">' + escapeHtml(project.name) + '</div></div><div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices…</span></div>';
     }
 
-    var html = '<div class="welcome-header"><h1>Invoices</h1><p>' + escapeHtml(project.name) + '</p></div>';
+    var html = '<div class="finances-page-header"><div class="finances-page-title">INVOICES</div><div class="finances-page-subtitle">' + escapeHtml(project.name) + '</div></div>';
     html += renderInvoicesSummaryBar();
 
     if (currentInvoices.length === 0) {
@@ -5812,10 +5806,7 @@
   function renderAdminClients() {
     const clients = allUsers.filter(u => u.role === 'client');
     let html = `
-      <div class="welcome-header">
-        <h1>Client Management</h1>
-        <p>${clients.length} registered client${clients.length !== 1 ? 's' : ''}.</p>
-      </div>
+      <div class="budget-page-header"><h2 class="budget-page-title">Client Management</h2><p class="budget-page-subtitle">${clients.length} registered client${clients.length !== 1 ? 's' : ''}.</p></div>
       <div class="admin-section">
         <div class="admin-client-header">
           <h3 class="admin-section-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none">All Clients</h3>
@@ -5856,10 +5847,7 @@
   function renderAdminTeam() {
     const employees = allUsers.filter(u => u.role === 'employee');
     let html = `
-      <div class="welcome-header">
-        <h1>Team</h1>
-        <p>${employees.length} employee${employees.length !== 1 ? 's' : ''} on your team.</p>
-      </div>
+      <div class="budget-page-header"><h2 class="budget-page-title">Team</h2><p class="budget-page-subtitle">${employees.length} employee${employees.length !== 1 ? 's' : ''} on your team.</p></div>
       <div class="admin-section">
         <div class="admin-client-header">
           <h3 class="admin-section-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none">All Employees</h3>
@@ -5919,10 +5907,7 @@
 
   function renderEmployeeOverview() {
     let html = `
-      <div class="welcome-header">
-        <h1>Welcome, ${escapeHtml((userProfile.name || '').split(' ')[0])}</h1>
-        <p>Your assigned projects.</p>
-      </div>
+      <div class="budget-page-header"><h2 class="budget-page-title">Welcome, ${escapeHtml((userProfile.name || '').split(' ')[0])}</h2><p class="budget-page-subtitle">Your assigned projects.</p></div>
       <div class="admin-overview">
     `;
 
@@ -5960,10 +5945,7 @@
 
     let html = `
       <button class="admin-detail-back" id="empBackBtn">← Back to Projects</button>
-      <div class="welcome-header">
-        <h1>${escapeHtml(project.name)}</h1>
-        <p>${escapeHtml(project.location || '')}</p>
-      </div>
+      <div class="budget-page-header"><h2 class="budget-page-title">${escapeHtml(project.name)}</h2><p class="budget-page-subtitle">${escapeHtml(project.location || '')}</p></div>
 
       <div class="admin-detail-tabs">
         <button class="admin-detail-tab ${employeeDetailTab === 'phases' ? 'active' : ''}" data-emp-tab="phases">Phases</button>

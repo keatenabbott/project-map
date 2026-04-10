@@ -4950,24 +4950,60 @@ details[open] .finances-details-summary::before { content: '−'; }
   }
 }
 
-/* Budget Breakdown card — dark title header */
-.finances-content-card-header--dark {
-  background: var(--text);
-  border-bottom: none;
+/* Budget Breakdown card — warm tint title header */
+.finances-content-card-header--warm {
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
   padding: 20px 24px 18px;
-  border-radius: 0; /* card handles the radius */
+  border-top: 3px solid var(--accent-warm);
 }
-.finances-content-card-header--dark .finances-content-card-title {
-  color: #FFFFFF;
+.finances-content-card-header--warm .finances-content-card-title {
+  color: var(--text);
   font-size: 18px;
-  letter-spacing: 0em;
+  letter-spacing: -0.01em;
 }
-.finances-content-card-header--dark .finances-content-card-desc {
-  color: rgba(255, 255, 255, 0.42);
+.finances-content-card-header--warm .finances-content-card-desc {
+  color: var(--text-tertiary);
   margin-top: 4px;
 }
 @media (max-width: 600px) {
-  .finances-content-card-header--dark {
+  .finances-content-card-header--warm {
     padding: 18px 20px 16px;
   }
+}
+
+/* ================================================
+   ADMIN / SHARED — Premium header upgrades
+   ================================================ */
+
+/* Gold accent on all admin page headers */
+.budget-page-header {
+  border-top: 3px solid var(--accent-warm);
+  padding-top: 20px;
+}
+
+/* Doc list items inside card body — remove top border on first item */
+.finances-content-card-body .doc-list-item:first-child {
+  border-top: none;
+}
+
+/* Selection cards inside card body — remove padding gap at top */
+.finances-content-card-body .selection-category-group:first-child {
+  padding-top: 0;
+}
+
+/* CO summary bar inside card body — remove top margin */
+.finances-content-card-body .co-summary-bar {
+  margin-top: 0;
+}
+
+/* Selections card body — zero padding so cards sit flush */
+.finances-content-card .selection-card {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+.finances-content-card .selection-card:last-child {
+  border-bottom: none;
 }
