@@ -1731,7 +1731,7 @@
     html += '<div class="messages-thread" id="messagesThread">';
     if (currentMessages.length === 0) {
       if (viewerRole === 'client') {
-        html += '<div class="empty-state"><div class="empty-state-icon">\ud83d\udcac</div><div class="empty-state-title">Start the Conversation</div><div class="empty-state-message">Use Field Notes to send updates, questions, or photos directly to your builder.</div></div>';
+        html += '<div class="empty-state"><div class="empty-state-icon">PM</div><div class="empty-state-title">Start the Conversation</div><div class="empty-state-message">Use Updates to send messages, questions, or photos directly to your builder.</div></div>';
       } else {
         html += '<div class="messages-empty">No updates yet. Send a message below to start the thread.</div>';
       }
@@ -2690,7 +2690,7 @@
       </div>
       <div class="finances-content-card"><div class="finances-content-card-body">
         <div class="finances-invoices-empty">
-          <div class="finances-invoices-empty-icon">&#127968;</div>
+          <div class="finances-invoices-empty-icon">PM</div>
           <div class="finances-invoices-empty-title">No Active Projects</div>
           <div class="finances-invoices-empty-msg">Contact your project manager and they'll get you set up here.</div>
         </div>
@@ -3014,7 +3014,7 @@
       html += '<div class="finances-kpi-row">';
       html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Budget</div><div class="finances-kpi-value">' + formatCurrency(totals.budget) + '</div></div>';
       html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Spent</div><div class="finances-kpi-value">' + formatCurrency(totals.actual) + '</div></div>';
-      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (isOver ? 'negative' : 'positive') + '">' + formatCurrency(Math.abs(remaining)) + '</div></div>';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (remaining < 0 ? 'negative' : (remaining > 0 ? 'positive' : '')) + '">' + formatCurrency(Math.abs(remaining)) + '</div></div>';
       html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Spent</div><div class="finances-kpi-value ' + (pctSpent >= 100 ? 'negative' : '') + '">' + pctSpent.toFixed(1) + '%</div></div>';
       html += '</div>';
       html += '<div class="finances-progress-track"><div class="finances-progress-fill" style="width:' + Math.min(100, pctSpent).toFixed(1) + '%;' + (pctSpent >= 100 ? 'background:#924014;' : '') + '"></div></div>';
@@ -3039,7 +3039,7 @@
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices\u2026</span></div>';
     } else if (!currentInvoices || currentInvoices.length === 0) {
       html += '<div class="finances-invoices-empty">';
-      html += '<div class="finances-invoices-empty-icon">&#10003;</div>';
+      html += '<div class="finances-invoices-empty-icon">PM</div>';
       html += '<div class="finances-invoices-empty-title">No invoices yet</div>';
       html += '<div class="finances-invoices-empty-msg">Invoices will appear here as your project progresses. Your builder will notify you when payment is due.</div>';
       html += '</div>';
@@ -3236,7 +3236,7 @@
       return `
         <div class="budget-page-header"><h2 class="budget-page-title">Budget</h2><p class="budget-page-subtitle">${escapeHtml(project.name)}</p></div>
         <div class="empty-state">
-          <div class="empty-state-icon">📊</div>
+          <div class="empty-state-icon">PM</div>
           <div class="empty-state-title">Budget Coming Soon</div>
           <div class="empty-state-message">Your builder will add budget details here as the project progresses.</div>
         </div>
@@ -3849,10 +3849,10 @@
 
       <div class="admin-detail-tabs">
         <button class="admin-detail-tab ${adminDetailTab === 'details' ? 'active' : ''}" data-detail-tab="details">Details</button>
-        <button class="admin-detail-tab ${adminDetailTab === 'phases' ? 'active' : ''}" data-detail-tab="phases">Phases</button>
+        <button class="admin-detail-tab ${adminDetailTab === 'phases' ? 'active' : ''}" data-detail-tab="phases">Timeline</button>
         <button class="admin-detail-tab ${adminDetailTab === 'budget' ? 'active' : ''}" data-detail-tab="budget">Budget</button>
         <button class="admin-detail-tab ${adminDetailTab === 'invoices' ? 'active' : ''}" data-detail-tab="invoices">Invoices</button>
-        <button class="admin-detail-tab ${adminDetailTab === 'updates' ? 'active' : ''}" data-detail-tab="updates">Field Notes</button>
+        <button class="admin-detail-tab ${adminDetailTab === 'updates' ? 'active' : ''}" data-detail-tab="updates">Updates</button>
         <button class="admin-detail-tab ${adminDetailTab === 'changeOrders' ? 'active' : ''}" data-detail-tab="changeOrders">Change Orders</button>
         <button class="admin-detail-tab ${adminDetailTab === 'selections' ? 'active' : ''}" data-detail-tab="selections">Selections</button>
         <button class="admin-detail-tab ${adminDetailTab === 'documents' ? 'active' : ''}" data-detail-tab="documents">Documents</button>
@@ -4503,7 +4503,7 @@
     html += '<div class="finances-kpi-row">';
     html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Budget</div><div class="finances-kpi-value" id="tbudget-total-budget">' + formatCurrency(totals.budget) + '</div></div>';
     html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Spent</div><div class="finances-kpi-value" id="tbudget-total-actual">' + formatCurrency(totals.actual) + '</div></div>';
-    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (totals.variance < 0 ? 'negative' : 'positive') + '" id="tbudget-total-variance">' + formatCurrency(totals.variance) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (totals.variance < 0 ? 'negative' : (totals.variance > 0 ? 'positive' : '')) + '" id="tbudget-total-variance">' + formatCurrency(totals.variance) + '</div></div>';
     html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Spent</div><div class="finances-kpi-value ' + (pct >= 100 ? 'negative' : '') + '" id="tbudget-progress-label">' + pct.toFixed(1) + '%</div></div>';
     html += '</div>';
     html += '<div class="finances-progress-track"><div class="finances-progress-fill" id="tbudget-progress-fill" style="width:' + Math.min(100, pct).toFixed(1) + '%;' + (pct >= 100 ? 'background:#924014;' : '') + '"></div></div>';
@@ -4652,7 +4652,7 @@
       html += '<div class="finances-kpi-row">';
       html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Budget</div><div class="finances-kpi-value">' + formatCurrency(totals.budget) + '</div></div>';
       html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Spent</div><div class="finances-kpi-value">' + formatCurrency(totals.actual) + '</div></div>';
-      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (totals.variance < 0 ? 'negative' : 'positive') + '">' + formatCurrency(totals.variance) + '</div></div>';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (totals.variance < 0 ? 'negative' : (totals.variance > 0 ? 'positive' : '')) + '">' + formatCurrency(totals.variance) + '</div></div>';
       html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Spent</div><div class="finances-kpi-value ' + (pctSpent >= 100 ? 'negative' : '') + '">' + pctSpent.toFixed(1) + '%</div></div>';
       html += '</div>';
       html += '<div class="finances-progress-track"><div class="finances-progress-fill" style="width:' + Math.min(100, pctSpent).toFixed(1) + '%;' + (pctSpent >= 100 ? 'background:#924014;' : '') + '"></div></div>';
@@ -4674,7 +4674,7 @@
     html += '<div class="finances-content-card-body" style="padding:0;">';
 
     if (!hasItems) {
-      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">&#128202;</div><div class="finances-invoices-empty-title">No Budget Items</div><div class="finances-invoices-empty-msg">Add line items above, or link a Google Sheet in the Details tab.</div></div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Budget Items</div><div class="finances-invoices-empty-msg">Add line items above, or link a Google Sheet in the Details tab.</div></div>';
       html += '</div></div>'; // close card body + card
       return html;
     }
@@ -4792,7 +4792,7 @@
     html += '<div class="finances-kpi-row">';
     html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Budget</div><div class="finances-kpi-value">' + formatCurrency(sheetBudgetTotal) + '</div></div>';
     html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Spent</div><div class="finances-kpi-value">' + formatCurrency(sheetActualTotal) + '</div></div>';
-    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (sheetRemaining < 0 ? 'negative' : 'positive') + '">' + formatCurrency(sheetRemaining) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (sheetRemaining < 0 ? 'negative' : (sheetRemaining > 0 ? 'positive' : '')) + '">' + formatCurrency(sheetRemaining) + '</div></div>';
     html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Spent</div><div class="finances-kpi-value ' + (sheetPct >= 100 ? 'negative' : '') + '">' + sheetPct.toFixed(1) + '%</div></div>';
     html += '</div>';
     html += '<div class="finances-progress-track"><div class="finances-progress-fill" style="width:' + Math.min(100, sheetPct).toFixed(1) + '%;' + (sheetPct >= 100 ? 'background:#924014;' : '') + '"></div></div>';
@@ -4992,7 +4992,7 @@
       html += '<div class="finances-content-card"><div class="finances-content-card-body"><div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading documents…</span></div></div></div>';
     } else if (projectDocuments.length === 0) {
       html += '<div class="finances-content-card"><div class="finances-content-card-body">';
-      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">&#128193;</div><div class="finances-invoices-empty-title">No Documents Yet</div><div class="finances-invoices-empty-msg">Plans, permits, contracts, and other project documents will be shared here as your project progresses.</div></div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Documents Yet</div><div class="finances-invoices-empty-msg">Plans, permits, contracts, and other project documents will be shared here as your project progresses.</div></div>';
       html += '</div></div>';
     } else {
       html += renderDocumentList(false);
@@ -5099,7 +5099,7 @@
       html += '<div class="finances-content-card"><div class="finances-content-card-body"><div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading selections…</span></div></div></div>';
     } else if (projectSelections.length === 0) {
       html += '<div class="finances-content-card"><div class="finances-content-card-body">';
-      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">&#127912;</div><div class="finances-invoices-empty-title">No Selections Yet</div><div class="finances-invoices-empty-msg">Your finishes and material selections will appear here for your review and approval.</div></div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Selections Yet</div><div class="finances-invoices-empty-msg">Your finishes and material selections will appear here for your review and approval.</div></div>';
       html += '</div></div>';
     } else {
       html += renderSelectionsGrouped(false);
@@ -5207,7 +5207,7 @@
     var html = '<div class="co-summary-bar">';
     html += '<div class="co-summary-item"><span class="co-summary-label">Total Change Orders</span><span class="co-summary-value">' + summary.total + '</span></div>';
     html += '<div class="co-summary-item"><span class="co-summary-label">Approved Impact</span><span class="co-summary-value ' + approvedClass + '">' + escapeHtml(approvedStr) + '</span></div>';
-    if (showPdfBtn) {
+    if (showPdfBtn && summary.total > 0) {
       html += '<div style="margin-left:auto"><button class="btn btn-secondary btn-small" id="downloadCoPdfBtn">↓ Download PDF</button></div>';
     }
     html += '</div>';
@@ -5315,7 +5315,7 @@
 
     if (currentChangeOrders.length === 0) {
       html += '<div class="finances-content-card"><div class="finances-content-card-body">';
-      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">&#128203;</div><div class="finances-invoices-empty-title">No Change Orders</div><div class="finances-invoices-empty-msg">Change orders will appear here if the scope or cost of your project changes. Your builder will notify you.</div></div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Change Orders</div><div class="finances-invoices-empty-msg">Change orders will appear here if the scope or cost of your project changes. Your builder will notify you.</div></div>';
       html += '</div></div>';
       return html;
     }
@@ -5540,7 +5540,7 @@
     html += renderInvoicesSummaryBar();
 
     if (currentInvoices.length === 0) {
-      html += '<div class="empty-state"><div class="empty-state-icon">🧾</div><div class="empty-state-title">No Invoices Yet</div><div class="empty-state-message">Invoices will appear here when your builder adds them. You\'ll be able to review and pay directly from this page.</div></div>';
+      html += '<div class="empty-state"><div class="empty-state-icon">PM</div><div class="empty-state-title">No Invoices Yet</div><div class="empty-state-message">Invoices will appear here when your builder adds them. You\'ll be able to review and pay directly from this page.</div></div>';
       return html;
     }
 
@@ -5975,7 +5975,7 @@
         <button class="admin-detail-tab ${employeeDetailTab === 'phases' ? 'active' : ''}" data-emp-tab="phases">Phases</button>
         <button class="admin-detail-tab ${employeeDetailTab === 'budget' ? 'active' : ''}" data-emp-tab="budget">Budget</button>
         <button class="admin-detail-tab ${employeeDetailTab === 'invoices' ? 'active' : ''}" data-emp-tab="invoices">Invoices</button>
-        <button class="admin-detail-tab ${employeeDetailTab === 'updates' ? 'active' : ''}" data-emp-tab="updates">Field Notes</button>
+        <button class="admin-detail-tab ${employeeDetailTab === 'updates' ? 'active' : ''}" data-emp-tab="updates">Updates</button>
         <button class="admin-detail-tab ${employeeDetailTab === 'changeOrders' ? 'active' : ''}" data-emp-tab="changeOrders">Change Orders</button>
         <button class="admin-detail-tab ${employeeDetailTab === 'selections' ? 'active' : ''}" data-emp-tab="selections">Selections</button>
         <button class="admin-detail-tab ${employeeDetailTab === 'documents' ? 'active' : ''}" data-emp-tab="documents">Documents</button>

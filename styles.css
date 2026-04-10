@@ -4489,9 +4489,20 @@ details[open] .finances-details-summary::before { content: '−'; }
   color: var(--text-tertiary);
 }
 .empty-state-icon {
-  font-size: 32px;
-  margin-bottom: 12px;
-  opacity: 0.6;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-warm);
+  color: var(--accent-warm);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  opacity: 1;
 }
 .empty-state-title {
   font-family: var(--font-nav);
@@ -4889,13 +4900,16 @@ details[open] .finances-details-summary::before { content: '−'; }
   padding: 36px 24px 32px;
 }
 .finances-invoices-empty-icon {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  background: #F0FAF6;
-  border: 1.5px solid #A7D9C4;
-  color: #065F46;
-  font-size: 17px;
+  background: transparent;
+  border: 1.5px solid var(--accent-warm);
+  color: var(--accent-warm);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   display: flex;
   align-items: center;
   justify-content: center;
