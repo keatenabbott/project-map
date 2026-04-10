@@ -1733,7 +1733,7 @@
       if (viewerRole === 'client') {
         html += '<div class="empty-state"><div class="empty-state-icon">PM</div><div class="empty-state-title">Start the Conversation</div><div class="empty-state-message">Use Updates to send messages, questions, or photos directly to your builder.</div></div>';
       } else {
-        html += '<div class="messages-empty">No updates yet. Send a message below to start the thread.</div>';
+        html += '<div class="finances-invoices-empty" style="padding:48px 24px;"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Updates Yet</div><div class="finances-invoices-empty-msg">Send a message below to start the thread with your client.</div></div>';
       }
     } else {
       currentMessages.forEach(function(msg) {
@@ -4899,7 +4899,7 @@
     if (photosLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading photos...</span></div>';
     } else if (projectPhotos.length === 0) {
-      html += '<div class="doc-empty">No photos uploaded yet.</div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Photos Yet</div><div class="finances-invoices-empty-msg">Upload photos from the field to share progress with your client.</div></div>';
     } else {
       html += renderPhotoGrid(true);
     }
@@ -4913,7 +4913,7 @@
     if (photosLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading photos...</span></div>';
     } else if (projectPhotos.length === 0) {
-      html += '<div class="doc-empty">No photos available yet.</div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Photos Yet</div><div class="finances-invoices-empty-msg">Your builder will share project photos here as work progresses.</div></div>';
     } else {
       // Phase filter bar
       var phaseSet = {};
@@ -4978,7 +4978,7 @@
     if (documentsLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading documents...</span></div>';
     } else if (projectDocuments.length === 0) {
-      html += '<div class="doc-empty">No documents uploaded yet.</div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Documents Yet</div><div class="finances-invoices-empty-msg">Upload plans, permits, and contracts using the form above.</div></div>';
     } else {
       html += renderDocumentList(true);
     }
@@ -5085,7 +5085,7 @@
     if (selectionsLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading selections...</span></div>';
     } else if (projectSelections.length === 0) {
-      html += '<div class="selection-empty">No selections added yet.</div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Selections Yet</div><div class="finances-invoices-empty-msg">Add material and finish selections using the form above.</div></div>';
     } else {
       html += renderSelectionsGrouped(true);
     }
@@ -5250,7 +5250,7 @@
     html += renderChangeOrdersSummaryBar(project, true);
 
     if (currentChangeOrders.length === 0) {
-      html += '<div class="co-empty">No change orders yet. Add one above.</div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Change Orders</div><div class="finances-invoices-empty-msg">Change orders will appear here once you create one above.</div></div>';
     } else {
       currentChangeOrders.forEach(function(co) {
         var costNum = Number(co.costImpact) || 0;
@@ -5381,7 +5381,7 @@
     html += renderChangeOrdersSummaryBar(project, false);
 
     if (currentChangeOrders.length === 0) {
-      html += '<div class="co-empty">No change orders for this project yet.</div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Change Orders</div><div class="finances-invoices-empty-msg">No change orders have been added to this project yet.</div></div>';
     } else {
       currentChangeOrders.forEach(function(co) {
         var costNum = Number(co.costImpact) || 0;
@@ -5490,9 +5490,9 @@
 
     if (currentInvoices.length === 0) {
       if (qboConnected) {
-        html += '<div class="invoice-empty">No invoices synced yet. Click \'Sync from QuickBooks\' to load invoices.</div>';
+        html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Invoices Synced</div><div class="finances-invoices-empty-msg">Click \\&lsquo;Sync from QuickBooks\\&rsquo; above to pull in your latest invoices.</div></div>';
       } else {
-        html += '<div class="invoice-empty">No invoices yet. Add one above.</div>';
+        html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Invoices Yet</div><div class="finances-invoices-empty-msg">Add an invoice above or connect QuickBooks to sync automatically.</div></div>';
       }
     } else {
       currentInvoices.forEach(function(inv) {
@@ -5582,7 +5582,7 @@
     html += renderInvoicesSummaryBar();
 
     if (currentInvoices.length === 0) {
-      html += '<div class="invoice-empty">No invoices for this project yet.</div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Invoices</div><div class="finances-invoices-empty-msg">No invoices have been added to this project yet.</div></div>';
     } else {
       currentInvoices.forEach(function(inv) {
         var isPaid = inv.status === 'paid';
@@ -6054,7 +6054,7 @@
     if (documentsLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading documents...</span></div>';
     } else if (projectDocuments.length === 0) {
-      html += '<div class="doc-empty">No documents uploaded yet.</div>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Documents Yet</div><div class="finances-invoices-empty-msg">Upload plans, permits, and contracts using the form above.</div></div>';
     } else {
       html += renderDocumentList(false);
     }
