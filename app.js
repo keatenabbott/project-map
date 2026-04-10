@@ -8010,9 +8010,9 @@
       currentUser = null;
       userProfile = null;
 
-      // Always show login for unauthenticated users.
-      // Setup is only accessible via the link on the login page (first-time installs only).
-      appState = 'login';
+      // Check if this is a fresh install (no admin created yet)
+      const initialized = await checkAdminInitialized();
+      appState = initialized ? 'login' : 'setup';
       render();
     }
   });
