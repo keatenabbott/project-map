@@ -6,12 +6,46 @@
   'use strict';
 
 
-  // Apply config colors to CSS custom properties
-  document.documentElement.style.setProperty('--primary', PORTAL_CONFIG.primaryColor);
-  document.documentElement.style.setProperty('--accent', PORTAL_CONFIG.accentColor);
-  document.documentElement.style.setProperty('--bg', PORTAL_CONFIG.backgroundColor);
-  document.documentElement.style.setProperty('--border', PORTAL_CONFIG.borderColor);
-  document.documentElement.style.setProperty('--text-secondary', PORTAL_CONFIG.textSecondary);
+  // Apply config colors to ALL CSS custom properties
+  // Helper: lighten a hex color by mixing with white
+  function lightenColor(hex, amount) {
+    var r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+    r = Math.round(r + (255 - r) * amount); g = Math.round(g + (255 - g) * amount); b = Math.round(b + (255 - b) * amount);
+    return '#' + [r,g,b].map(function(c) { return c.toString(16).padStart(2,'0'); }).join('');
+  }
+  // Helper: darken a hex color by mixing with black
+  function darkenColor(hex, amount) {
+    var r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+    r = Math.round(r * (1 - amount)); g = Math.round(g * (1 - amount)); b = Math.round(b * (1 - amount));
+    return '#' + [r,g,b].map(function(c) { return c.toString(16).padStart(2,'0'); }).join('');
+  }
+
+  var root = document.documentElement.style;
+  var cfg = PORTAL_CONFIG;
+
+  // Core colors from config
+  root.setProperty('--primary', cfg.primaryColor);
+  root.setProperty('--text', cfg.primaryColor);
+  root.setProperty('--in-progress', cfg.primaryColor);
+
+  root.setProperty('--accent', cfg.accentColor);
+  root.setProperty('--accent-warm', cfg.accentColor);
+  root.setProperty('--accent-warm-light', lightenColor(cfg.accentColor, 0.55));
+
+  root.setProperty('--bg', cfg.backgroundColor);
+  root.setProperty('--bg-alt', darkenColor(cfg.backgroundColor, 0.03));
+  root.setProperty('--in-progress-bg', darkenColor(cfg.backgroundColor, 0.03));
+  root.setProperty('--success-bg', darkenColor(cfg.backgroundColor, 0.03));
+
+  root.setProperty('--surface', cfg.surfaceColor || '#FFFFFF');
+  root.setProperty('--surface-hover', darkenColor(cfg.surfaceColor || '#FFFFFF', 0.02));
+
+  root.setProperty('--border', cfg.borderColor);
+  root.setProperty('--border-light', lightenColor(cfg.borderColor, 0.3));
+
+  root.setProperty('--text-secondary', cfg.textSecondary);
+  root.setProperty('--text-tertiary', lightenColor(cfg.textSecondary, 0.3));
+  root.setProperty('--success', cfg.textSecondary);
 
   // Apply page title from config
   document.title = PORTAL_CONFIG.companyName + ' — ' + PORTAL_CONFIG.tagline;
