@@ -2619,7 +2619,7 @@
     return `
       <nav class="nav-bar">
         <div class="nav-logo"><svg viewBox='0 0 18 14' width='18' height='14' fill='none' stroke='currentColor' stroke-width='1.2' stroke-linecap='round' style='opacity:0.7;margin-right:7px;vertical-align:middle;'><path d='M1 11 Q4 8 9 6 Q14 4 17 2'/><path d='M2 13 Q5 10 9 8 Q13 6 16 5'/><circle cx='9' cy='6.5' r='1.4' fill='currentColor' stroke='none'/></svg>${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
-        <div class="nav-links">
+        <div class="nav-links-wrap"><div class="nav-links">
           ${project ? `
             <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Home</button>
             <button class="nav-link ${clientView === 'finances' ? 'active' : ''}" data-client-nav="finances">Finances</button>
@@ -2629,7 +2629,7 @@
             <button class="nav-link ${clientView === 'documents' ? 'active' : ''}" data-client-nav="documents">Documents</button>
           ` : ''}
           <button class="nav-link" id="logoutBtn">Logout</button>
-        </div>
+        </div></div>
       </nav>
       <main class="main-content">
         ${project ? (function() {

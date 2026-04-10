@@ -4613,3 +4613,98 @@ details[open] .finances-details-summary::before { content: '−'; }
   padding: 8px 0;
   margin: 0;
 }
+
+/* ================================================
+   MOBILE IMPROVEMENTS
+   ================================================ */
+
+/* Scroll-hint fade on nav links */
+.nav-links-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.nav-links-wrap::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--bg));
+  pointer-events: none;
+  display: none;
+}
+@media (max-width: 768px) {
+  /* Hide tagline on mobile to give tabs more room */
+  .nav-logo span { display: none; }
+
+  /* Tighten budget table on mobile */
+  .tbudget-col-headers { display: none; }
+  .tbudget-line {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    padding: 10px 12px;
+    gap: 2px;
+  }
+  .tbudget-line-code {
+    grid-column: 1; grid-row: 1;
+    font-size: 9px;
+  }
+  .tbudget-line-name {
+    grid-column: 1; grid-row: 2;
+    font-size: 11px;
+    padding-right: 8px;
+  }
+  .tbudget-line-budget {
+    grid-column: 2; grid-row: 1;
+    text-align: right;
+  }
+  .tbudget-line-actual {
+    grid-column: 2; grid-row: 2;
+    text-align: right;
+  }
+  /* Hide variance + status columns on mobile */
+  .tbudget-line-variance,
+  .tbudget-line-status,
+  .tbudget-line-actions { display: none; }
+
+  /* Category header: stack totals below name on mobile */
+  .tbudget-cat-header { flex-wrap: wrap; gap: 4px; }
+  .tbudget-cat-right { gap: 12px; }
+  .tbudget-cat-budget, .tbudget-cat-actual { min-width: 60px; font-size: 10px; }
+  .tbudget-cat-variance { min-width: 60px; font-size: 10px; }
+
+  /* Budget input: full width on mobile */
+  .tbudget-input { max-width: 80px; font-size: 11px; }
+
+  /* Dashboard top grid: already collapses at 860px, just ensure no overflow */
+  .dashboard-top-grid { gap: 12px; }
+
+  /* Wizard: more compact on mobile */
+  .modal.modal-wizard { max-width: 100%; margin: 0; border-radius: 0; min-height: 100vh; }
+  .wizard-modules { grid-template-columns: 1fr; }
+
+  /* Finances section: tighter */
+  .finances-section { margin-bottom: 32px; }
+
+  /* Info bar: wrap on mobile */
+  .tbudget-info-bar { gap: 12px; }
+
+  /* Budget edit row: wrap fields */
+  .tbudget-edit-fields { flex-direction: column; }
+  .tbudget-edit-field { min-width: 100%; }
+}
+
+@media (max-width: 480px) {
+  /* Nav: even tighter */
+  .nav-logo { font-size: 14px; letter-spacing: 0.06em; }
+  .nav-link { font-size: 9px; padding: 6px 8px; }
+
+  /* Finance snapshot: 2-col on smallest screens */
+  .dash-finances-items { grid-template-columns: 1fr 1fr; }
+  .dash-fin-value { font-size: 15px; }
+
+  /* Action needed text: wrap */
+  .action-needed-text { font-size: 11px; }
+
+  /* Budget category: simplified */
+  .tbudget-cat-right { flex-direction: column; align-items: flex-end; gap: 2px; }
+}
