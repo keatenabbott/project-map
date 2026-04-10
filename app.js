@@ -116,6 +116,37 @@
     }
   }
 
+  function updateTitle() {
+    var base = PORTAL_CONFIG.companyName || 'Project Map';
+    var title = base;
+    if (appState === 'admin') {
+      if (adminView === 'detail' && adminSelectedProject) {
+        var proj = allProjects.find(function(p) { return p.id === adminSelectedProject; });
+        var projName = proj ? proj.name : 'Project';
+        var tabLabels = {
+          details: '', phases: 'Timeline', budget: 'Budget',
+          updates: 'Updates', photos: 'Photos', documents: 'Documents',
+          selections: 'Selections'
+        };
+        var tabLabel = tabLabels[adminDetailTab] || '';
+        title = (tabLabel ? tabLabel + ' — ' : '') + projName + ' | ' + base;
+      } else {
+        title = 'Admin | ' + base;
+      }
+    } else if (appState === 'client') {
+      var clientProj = allProjects.find(function(p) { return p.clientId === (userProfile && userProfile.id) || p.id === (userProfile && userProfile.projectId); });
+      var clientProjName = clientProj ? clientProj.name : '';
+      var clientTabLabels = {
+        dashboard: 'Home', finances: 'Finances', updates: 'Updates',
+        changeOrders: 'Approvals', selections: 'Selections', documents: 'Documents'
+      };
+      var clientTab = clientTabLabels[clientView] || '';
+      title = (clientTab && clientTab !== 'Home' ? clientTab + ' — ' : '') + (clientProjName || base);
+      if (clientProjName) title += ' | ' + base;
+    }
+    document.title = title;
+  }
+
   // Handle browser back / forward buttons
   window.addEventListener('popstate', function() {
     if (appState !== 'admin') return;
@@ -2340,6 +2371,7 @@
   // ========================================
 
   function render() {
+    updateTitle();
     const app = document.getElementById('app');
     // if (appState === 'login') appState = 'setup'; // fixed login bug
     switch (appState) {
