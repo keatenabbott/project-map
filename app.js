@@ -4471,6 +4471,12 @@
 
     var html = '';
 
+    // ── Page header ────────────────────────────────────────────────────────────────────
+    html += '<div class="budget-page-header">';
+    html += '<h2 class="budget-page-title">Budget</h2>';
+    html += '<p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p>';
+    html += '</div>';
+
     // ── Summary bar ────────────────────────────────────────────────────────────────
     html += '<div class="budget-summary" style="margin-bottom:24px">'
       + '<div class="budget-summary-main" style="margin-bottom:0;padding-bottom:0;border-bottom:none">'

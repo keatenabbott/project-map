@@ -3783,15 +3783,12 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 48px;
 }
 .finances-section-label {
-  font-family: var(--font-nav);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
   margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: -0.01em;
 }
 .finances-details {
   margin-top: 20px;
@@ -4707,4 +4704,26 @@ details[open] .finances-details-summary::before { content: '−'; }
 
   /* Budget category: simplified */
   .tbudget-cat-right { flex-direction: column; align-items: flex-end; gap: 2px; }
+}
+
+/* Budget tab page header (admin template budget view) */
+.budget-page-header {
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.budget-page-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+.budget-page-subtitle {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
 }
