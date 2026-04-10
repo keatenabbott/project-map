@@ -1718,7 +1718,10 @@
 
   function renderUpdatesTab(project, viewerRole) {
     // viewerRole: 'admin' | 'client' | 'employee'
-    var html = '<div class="admin-section">';
+    var headerHtml = viewerRole === 'client'
+      ? '<div class="welcome-header"><h1>Updates</h1><p>' + escapeHtml(project ? project.name : '') + '</p></div>'
+      : '<div class="budget-page-header"><h2 class="budget-page-title">Updates</h2><p class="budget-page-subtitle">' + escapeHtml(project ? project.name : '') + '</p></div>';
+    var html = headerHtml + '<div class="admin-section">';
     if (messagesLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading updates...</span></div>';
       html += '</div>';
@@ -4104,7 +4107,8 @@
   }
 
   function renderAdminPhasesTab(project) {
-    let tableHtml = '<div class="admin-section"><table class="admin-table"><thead><tr><th>#</th><th>Phase</th><th>Status</th><th>Start</th><th>End</th></tr></thead><tbody>';
+    let tableHtml = '<div class="budget-page-header"><h2 class="budget-page-title">Timeline</h2><p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p></div>';
+    tableHtml += '<div class="admin-section"><table class="admin-table"><thead><tr><th>#</th><th>Phase</th><th>Status</th><th>Start</th><th>End</th></tr></thead><tbody>';
 
     (project.phases || []).forEach((phase, i) => {
       const def = getPhaseDef(i + 1);
@@ -4832,7 +4836,8 @@
 
   function renderAdminPhotosTab(project) {
     var phases = project.phases || [];
-    var html = '<div class="admin-section">';
+    var html = '<div class="budget-page-header"><h2 class="budget-page-title">Photos</h2><p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p></div>';
+    html += '<div class="admin-section">';
     html += '<div class="photo-upload-area"><h4>Upload Photo</h4>';
     html += '<form id="photoUploadForm">';
     html += '<div class="admin-form-row">';
@@ -4863,7 +4868,8 @@
   }
 
   function renderClientPhotosTab(project) {
-    var html = '<div class="admin-section">';
+    var html = '<div class="welcome-header"><h1>Photos</h1><p>' + escapeHtml(project.name) + '</p></div>';
+    html += '<div class="admin-section">';
     if (photosLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading photos...</span></div>';
     } else if (projectPhotos.length === 0) {
@@ -4915,7 +4921,8 @@
   var DOC_CATEGORIES = ['Plans', 'Permits', 'Contracts', 'Change Orders', 'Insurance', 'Other'];
 
   function renderAdminDocumentsTab(project) {
-    var html = '<div class="admin-section">';
+    var html = '<div class="budget-page-header"><h2 class="budget-page-title">Documents</h2><p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p></div>';
+    html += '<div class="admin-section">';
     html += '<div class="doc-upload-area"><h4>Upload Document</h4>';
     html += '<form id="docUploadForm">';
     html += '<div class="admin-form-row">';
@@ -4940,7 +4947,8 @@
   }
 
   function renderClientDocumentsTab(project) {
-    var html = '<div class="admin-section">';
+    var html = '<div class="welcome-header"><h1>Documents</h1><p>' + escapeHtml(project.name) + '</p></div>';
+    html += '<div class="admin-section">';
     if (documentsLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading documents...</span></div>';
     } else if (projectDocuments.length === 0) {
@@ -5027,7 +5035,8 @@
   var SELECTION_STATUSES = ['Pending', 'Approved', 'Ordered', 'Installed'];
 
   function renderAdminSelectionsTab(project) {
-    var html = '<div class="admin-section">';
+    var html = '<div class="budget-page-header"><h2 class="budget-page-title">Selections</h2><p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p></div>';
+    html += '<div class="admin-section">';
     html += '<div class="selection-add-area"><h4>Add Selection</h4>';
     html += '<form id="selectionAddForm">';
     html += '<div class="admin-form-row">';
@@ -5066,7 +5075,8 @@
   }
 
   function renderClientSelectionsTab(project) {
-    var html = '<div class="admin-section">';
+    var html = '<div class="welcome-header"><h1>Selections</h1><p>' + escapeHtml(project.name) + '</p></div>';
+    html += '<div class="admin-section">';
     if (selectionsLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading selections...</span></div>';
     } else if (projectSelections.length === 0) {
@@ -5181,7 +5191,8 @@
   }
 
   function renderAdminChangeOrdersTab(project) {
-    var html = '<div class="admin-section">';
+    var html = '<div class="budget-page-header"><h2 class="budget-page-title">Change Orders</h2><p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p></div>';
+    html += '<div class="admin-section">';
 
     // Add form
     html += '<div class="add-update-form"><h4>Add Change Order</h4>';
@@ -5371,7 +5382,8 @@
   // ========================================
 
   function renderAdminInvoicesTab(project) {
-    var html = '<div class="admin-section">';
+    var html = '<div class="budget-page-header"><h2 class="budget-page-title">Invoices</h2><p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p></div>';
+    html += '<div class="admin-section">';
 
     // ── QBO CONNECTION BANNER ────────────────────────────────
     if (qboConnected) {
