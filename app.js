@@ -4497,17 +4497,16 @@
     html += '<p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p>';
     html += '</div>';
 
-    // ── Summary bar ────────────────────────────────────────────────────────────────
-    html += '<div class="budget-summary" style="margin-bottom:24px">'
-      + '<div class="budget-summary-main" style="margin-bottom:0;padding-bottom:0;border-bottom:none">'
-      + '<div class="budget-summary-amounts">'
-      + '<div class="budget-amount-block"><span class="budget-amount-label">Total Budget</span><span class="budget-amount-value" id="tbudget-total-budget">'+formatCurrency(totals.budget)+'</span></div>'
-      + '<div class="budget-amount-block"><span class="budget-amount-label">Total Spent</span><span class="budget-amount-value spent" id="tbudget-total-actual">'+formatCurrency(totals.actual)+'</span></div>'
-      + '<div class="budget-amount-block"><span class="budget-amount-label">Remaining</span><span class="budget-amount-value remaining" id="tbudget-total-variance"'+(totals.variance<0?' style="color:#A0705A"':'')+'>'+formatCurrency(totals.variance)+'</span></div>'
-      + '</div>'
-      + '<div class="budget-progress-bar" style="margin-top:16px"><div class="budget-progress-fill" id="tbudget-progress-fill" style="width:'+pct.toFixed(1)+'%;'+(pct>100?'background:#A0705A':'')+'"></div></div>'
-      + '<div class="budget-progress-label" id="tbudget-progress-label">'+pct.toFixed(1)+'% of budget spent</div>'
-      + '</div></div>';
+    // ── Budget Overview Card ────────────────────────────────────────────────────────
+    html += '<div class="finances-overview-card">';
+    html += '<div class="finances-overview-eyebrow">Budget Overview</div>';
+    html += '<div class="finances-kpi-row">';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Budget</div><div class="finances-kpi-value" id="tbudget-total-budget">' + formatCurrency(totals.budget) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Spent</div><div class="finances-kpi-value" id="tbudget-total-actual">' + formatCurrency(totals.actual) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (totals.variance < 0 ? 'negative' : 'positive') + '" id="tbudget-total-variance">' + formatCurrency(totals.variance) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Spent</div><div class="finances-kpi-value ' + (pct >= 100 ? 'negative' : '') + '" id="tbudget-progress-label">' + pct.toFixed(1) + '%</div></div>';
+    html += '</div>';
+    html += '<div class="finances-progress-track"><div class="finances-progress-fill" id="tbudget-progress-fill" style="width:' + Math.min(100, pct).toFixed(1) + '%;' + (pct >= 100 ? 'background:#924014;' : '') + '"></div></div>';
 
     // ── Info bar + global restore ──────────────────────────────────────────────────────────────
     var tier = project.budget_tier || 'standard';
@@ -4527,6 +4526,15 @@
       + '<span><strong>'+firestoreBudgetItems.length+'</strong> lines</span>'
       + (restoreAllBtn ? '<span style="margin-left:auto">'+restoreAllBtn+'</span>' : '')
       + '</div>';
+    html += '</div>'; // close .finances-overview-card
+
+    // ── Budget Breakdown Card ─────────────────────────────────────────────────────
+    html += '<div class="finances-content-card">';
+    html += '<div class="finances-content-card-header finances-content-card-header--warm">';
+    html += '<div class="finances-content-card-title">Budget Breakdown</div>';
+    html += '<div class="finances-content-card-desc">Tap a category to expand and edit line items.</div>';
+    html += '</div>';
+    html += '<div class="finances-content-card-body" style="padding:0;">';
 
     // ── Column headers ─────────────────────────────────────────────────────────────────
     html += '<div class="tbudget-col-headers">'
@@ -4604,6 +4612,8 @@
     });
 
     html += '</div>'; // .tbudget-list
+    html += '</div>'; // .finances-content-card-body
+    html += '</div>'; // .finances-content-card
     return html;
   }
 
@@ -4635,44 +4645,37 @@
 
     let html = '';
 
-    // Summary bar
+    // ── Budget Overview Card ────────────────────────────────────────────────────────
     if (hasItems) {
-      html += `
-        <div class="budget-summary" style="margin-bottom:24px">
-          <div class="budget-summary-main" style="margin-bottom:0;padding-bottom:0;border-bottom:none">
-            <div class="budget-summary-amounts">
-              <div class="budget-amount-block">
-                <span class="budget-amount-label">Total Budget</span>
-                <span class="budget-amount-value">${formatCurrency(totals.budget)}</span>
-              </div>
-              <div class="budget-amount-block">
-                <span class="budget-amount-label">Total Spent</span>
-                <span class="budget-amount-value spent">${formatCurrency(totals.actual)}</span>
-              </div>
-              <div class="budget-amount-block">
-                <span class="budget-amount-label">Remaining</span>
-                <span class="budget-amount-value remaining" ${totals.variance < 0 ? 'style="color:#A0705A"' : ''}>${formatCurrency(totals.variance)}</span>
-              </div>
-            </div>
-            <div class="budget-progress-bar" style="margin-top:16px">
-              <div class="budget-progress-fill" style="width: ${pctSpent.toFixed(1)}%;${pctSpent > 100 ? 'background:#A0705A' : ''}"></div>
-            </div>
-            <div class="budget-progress-label">${pctSpent.toFixed(1)}% of budget spent</div>
-          </div>
-        </div>
-      `;
+      html += '<div class="finances-overview-card">';
+      html += '<div class="finances-overview-eyebrow">Budget Overview</div>';
+      html += '<div class="finances-kpi-row">';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Budget</div><div class="finances-kpi-value">' + formatCurrency(totals.budget) + '</div></div>';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Spent</div><div class="finances-kpi-value">' + formatCurrency(totals.actual) + '</div></div>';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (totals.variance < 0 ? 'negative' : 'positive') + '">' + formatCurrency(totals.variance) + '</div></div>';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Spent</div><div class="finances-kpi-value ' + (pctSpent >= 100 ? 'negative' : '') + '">' + pctSpent.toFixed(1) + '%</div></div>';
+      html += '</div>';
+      html += '<div class="finances-progress-track"><div class="finances-progress-fill" style="width:' + Math.min(100, pctSpent).toFixed(1) + '%;' + (pctSpent >= 100 ? 'background:#924014;' : '') + '"></div></div>';
+      html += '</div>'; // .finances-overview-card
     }
 
-    // Toolbar
-    html += '<div class="budget-admin-toolbar">';
-    html += '<div class="budget-admin-toolbar-actions">';
+    // ── Budget Breakdown Card ────────────────────────────────────────────────────────
+    html += '<div class="finances-content-card">';
+    html += '<div class="finances-content-card-header finances-content-card-header--warm">';
+    html += '<div class="finances-content-card-title">Budget Breakdown</div>';
+    html += '<div class="finances-content-card-desc" style="display:flex;align-items:center;justify-content:space-between;">';
+    html += '<span>Line items grouped by category.</span>';
+    html += '<span style="display:flex;gap:8px;">';
     html += '<button class="btn btn-primary btn-small" id="addBudgetItemBtn">+ Add Line Item</button>';
-    html += '<button class="btn btn-secondary btn-small" id="downloadBudgetPdfBtn" style="margin-left:8px">↓ Download PDF</button>';
-    html += '</div></div>';
+    html += '<button class="btn btn-secondary btn-small" id="downloadBudgetPdfBtn">\u2193 Download PDF</button>';
+    html += '</span>';
+    html += '</div>';
+    html += '</div>';
+    html += '<div class="finances-content-card-body" style="padding:0;">';
 
     if (!hasItems) {
-      html += '<div class="budget-empty-state"><p>No budget items yet. Add line items using the button above.</p></div>';
-      html += '<p class="budget-sheet-hint">Want to sync from a spreadsheet? Add a Google Sheet URL in the Details tab.</p>';
+      html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">&#128202;</div><div class="finances-invoices-empty-title">No Budget Items</div><div class="finances-invoices-empty-msg">Add line items above, or link a Google Sheet in the Details tab.</div></div>';
+      html += '</div></div>'; // close card body + card
       return html;
     }
 
@@ -4724,6 +4727,8 @@
     html += '<td></td><td></td></tr>';
 
     html += '</tbody></table></div>';
+    html += '</div>'; // .finances-content-card-body
+    html += '</div>'; // .finances-content-card
     html += '<p class="budget-sheet-hint">Want to sync from a spreadsheet? Add a Google Sheet URL in the Details tab.</p>';
 
     return html;
@@ -4776,16 +4781,33 @@
       return html;
     }
 
-    // Last synced notice
+    // ── Budget Overview Card ────────────────────────────────────────────────────────
+    html += '<div class="finances-overview-card">';
+    html += '<div class="finances-overview-eyebrow">Budget Overview</div>';
+    // Compute sheet totals for KPI row
+    var sheetBudgetTotal = 0, sheetActualTotal = 0;
+    budgetData.forEach(function(cat) { sheetBudgetTotal += cat.budget || 0; sheetActualTotal += cat.actual || 0; });
+    var sheetRemaining = sheetBudgetTotal - sheetActualTotal;
+    var sheetPct = sheetBudgetTotal > 0 ? Math.min(100, (sheetActualTotal / sheetBudgetTotal) * 100) : 0;
+    html += '<div class="finances-kpi-row">';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Budget</div><div class="finances-kpi-value">' + formatCurrency(sheetBudgetTotal) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Spent</div><div class="finances-kpi-value">' + formatCurrency(sheetActualTotal) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (sheetRemaining < 0 ? 'negative' : 'positive') + '">' + formatCurrency(sheetRemaining) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Spent</div><div class="finances-kpi-value ' + (sheetPct >= 100 ? 'negative' : '') + '">' + sheetPct.toFixed(1) + '%</div></div>';
+    html += '</div>';
+    html += '<div class="finances-progress-track"><div class="finances-progress-fill" style="width:' + Math.min(100, sheetPct).toFixed(1) + '%;' + (sheetPct >= 100 ? 'background:#924014;' : '') + '"></div></div>';
     if (syncTime) {
-      html += '<div class="budget-sync-row"><span class="budget-sync-info">Last synced: ' + escapeHtml(syncTime) + '</span></div>';
+      html += '<div class="finances-sync-row"><span class="finances-sync-label">Last synced ' + escapeHtml(syncTime) + '</span></div>';
     }
+    html += '</div>'; // .finances-overview-card
 
-    // Render the budget summary
-    html += renderBudgetSummary(false);
-
-    // Render the read-only budget table (reuse existing renderBudgetTable, no edit link)
-    // Build table directly to avoid the toolbar being re-rendered
+    // ── Budget Breakdown Card ────────────────────────────────────────────────────────
+    html += '<div class="finances-content-card">';
+    html += '<div class="finances-content-card-header finances-content-card-header--warm">';
+    html += '<div class="finances-content-card-title">Budget Breakdown</div>';
+    html += '<div class="finances-content-card-desc">Synced from Google Sheets. Tap any category to expand.</div>';
+    html += '</div>';
+    html += '<div class="finances-content-card-body--table">';
     html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>';
     html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
     html += '</tr></thead><tbody>';
@@ -4838,6 +4860,8 @@
     html += '<td class="' + grandVarianceClass + '">' + formatCurrency(grandVariance) + '</td>';
     html += '<td></td></tr>';
     html += '</tbody></table></div>';
+    html += '</div>'; // .finances-content-card-body--table
+    html += '</div>'; // .finances-content-card
 
     return html;
   }
