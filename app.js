@@ -2936,74 +2936,126 @@
   // ========================================
   // FINANCES TAB (Budget summary + Invoices)
   // ========================================
+  // Build invoice list HTML — used inside the new card layout
+  function buildInvoiceListHtml() {
+    var out = '';
+    (currentInvoices || []).forEach(function(inv) {
+      var isPaid = inv.status === 'paid';
+      out += '<div class="invoice-item' + (isPaid ? ' is-paid' : '') + '">';
+      out += '<div class="invoice-item-header"><div class="invoice-item-title">' + escapeHtml(inv.title || '') + '</div>';
+      out += '<div style="display:flex;align-items:center;gap:8px;"><div class="invoice-amount">' + formatCurrency(inv.amount) + '</div>';
+      out += renderInvoiceStatusBadge(inv.status) + '</div></div>';
+      out += '<div class="invoice-item-meta">';
+      if (inv.dueDate) out += '<span style="font-family:var(--font-nav);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-tertiary)">Due: ' + formatDate(inv.dueDate) + '</span>';
+      out += '</div>';
+      if (inv.notes) out += '<div class="invoice-item-notes">' + escapeHtml(inv.notes) + '</div>';
+      if (inv.invoiceUrl) {
+        out += '<div class="invoice-item-footer">';
+        out += !isPaid
+          ? '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-pay-btn">Pay Now</a>'
+          : '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-view-btn">View Invoice</a>';
+        out += '</div>';
+      }
+      out += '</div>';
+    });
+    return out;
+  }
+
   function renderClientFinances(project) {
     var hasSheet = project && project.googleSheetUrl && extractSheetId(project.googleSheetUrl);
-    var html = '<div class="welcome-header"><h1>Finances</h1><p>' + escapeHtml(project.name) + '</p></div>';
 
-    // Helper: invoice list HTML (empty string if no invoices)
-    var invoiceListHtml = '';
-    if (!invoicesLoading && currentInvoices.length > 0) {
-      currentInvoices.forEach(function(inv) {
-        var isPaid = inv.status === 'paid';
-        invoiceListHtml += '<div class="invoice-item' + (isPaid ? ' is-paid' : '') + '">';
-        invoiceListHtml += '<div class="invoice-item-header"><div class="invoice-item-title">' + escapeHtml(inv.title || '') + '</div>';
-        invoiceListHtml += '<div style="display:flex;align-items:center;gap:8px;"><div class="invoice-amount">' + formatCurrency(inv.amount) + '</div>';
-        invoiceListHtml += renderInvoiceStatusBadge(inv.status) + '</div></div>';
-        invoiceListHtml += '<div class="invoice-item-meta">';
-        if (inv.dueDate) invoiceListHtml += '<span style="font-family:var(--font-nav);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-tertiary)">Due: ' + formatDate(inv.dueDate) + '</span>';
-        invoiceListHtml += '</div>';
-        if (inv.notes) invoiceListHtml += '<div class="invoice-item-notes">' + escapeHtml(inv.notes) + '</div>';
-        if (inv.invoiceUrl) {
-          invoiceListHtml += '<div class="invoice-item-footer">';
-          invoiceListHtml += !isPaid
-            ? '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-pay-btn">Pay Now</a>'
-            : '<a href="' + escapeAttr(inv.invoiceUrl) + '" target="_blank" rel="noopener noreferrer" class="invoice-view-btn">View Invoice</a>';
-          invoiceListHtml += '</div>';
-        }
-        invoiceListHtml += '</div>';
+    // ── COMPUTE TOTALS ──────────────────────────────────────────────
+    var totals = { budget: 0, actual: 0 };
+    if (hasSheet && budgetData) {
+      budgetData.forEach(function(cat) {
+        totals.budget += cat.budget || 0;
+        totals.actual += cat.actual || 0;
       });
+    } else if (!hasSheet && firestoreBudgetItems && firestoreBudgetItems.length > 0) {
+      var isNew = firestoreBudgetItems[0].cost_code !== undefined;
+      var t = isNew ? getTemplatedBudgetTotals() : getFirestoreBudgetTotals();
+      totals.budget = t.budget;
+      totals.actual = t.actual;
     }
-    // Build the invoice section once — always shown, clean when empty
-    var invoiceSectionHtml = '<div class="finances-section">';
-    invoiceSectionHtml += '<div class="finances-section-label">Invoices</div>';
-    if (invoicesLoading) {
-      invoiceSectionHtml += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices…</span></div>';
-    } else if (currentInvoices.length === 0) {
-      invoiceSectionHtml += '<p class="finances-empty-note">No invoices on file yet. Your builder will add them here when billing begins.</p>';
+    var remaining = totals.budget - totals.actual;
+    var pctSpent = totals.budget > 0 ? Math.min(100, (totals.actual / totals.budget) * 100) : 0;
+    var isOver = remaining < 0;
+
+    // Budget data availability flags
+    var budgetLoaded = (hasSheet && budgetData && !budgetLoading && !budgetFetchError) ||
+                       (!hasSheet && !firestoreBudgetLoading && firestoreBudgetItems.length > 0);
+    var budgetIsLoading = (hasSheet && (budgetLoading || !budgetData)) || (!hasSheet && firestoreBudgetLoading);
+
+    // ── PAGE TITLE ────────────────────────────────────────────────────
+    var html = '<div class="finances-page-header">';
+    html += '<div class="finances-page-title">FINANCES</div>';
+    html += '<div class="finances-page-subtitle">' + escapeHtml(project ? project.name : '') + '</div>';
+    html += '</div>';
+
+    // ── FINANCIAL OVERVIEW CARD ───────────────────────────────────────
+    html += '<div class="finances-overview-card">';
+    html += '<div class="finances-overview-eyebrow">Financial Overview</div>';
+
+    if (budgetIsLoading) {
+      html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading\u2026</span></div>';
+    } else if (hasSheet && budgetFetchError) {
+      html += '<div class="budget-fetch-error"><p class="budget-fetch-error-msg">&#9888; Could not load budget: ' + escapeHtml(budgetFetchError) + '</p>';
+      html += '<button class="btn btn-secondary btn-small" id="budgetRefreshBtn" style="margin-top:12px">Retry</button></div>';
+    } else if (!budgetLoaded) {
+      html += '<div class="finances-empty-budget"><p style="font-size:13px;color:var(--text-tertiary);margin:0;line-height:1.6;">Your builder will add budget details here as the project progresses.</p></div>';
     } else {
-      invoiceSectionHtml += renderInvoicesSummaryBar();
-      invoiceSectionHtml += invoiceListHtml;
+      html += '<div class="finances-kpi-row">';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Budget</div><div class="finances-kpi-value">' + formatCurrency(totals.budget) + '</div></div>';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Spent</div><div class="finances-kpi-value">' + formatCurrency(totals.actual) + '</div></div>';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Remaining</div><div class="finances-kpi-value ' + (isOver ? 'negative' : 'positive') + '">' + formatCurrency(Math.abs(remaining)) + '</div></div>';
+      html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Spent</div><div class="finances-kpi-value ' + (pctSpent >= 100 ? 'negative' : '') + '">' + pctSpent.toFixed(1) + '%</div></div>';
+      html += '</div>';
+      html += '<div class="finances-progress-track"><div class="finances-progress-fill" style="width:' + Math.min(100, pctSpent).toFixed(1) + '%;' + (pctSpent >= 100 ? 'background:#924014;' : '') + '"></div></div>';
+      if (hasSheet && budgetLastSynced) {
+        var syncTime = budgetLastSynced.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+          ' at ' + budgetLastSynced.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        html += '<div class="finances-sync-row">';
+        html += '<span class="finances-sync-label">Last synced ' + escapeHtml(syncTime) + '</span>';
+        html += '<button class="budget-refresh-btn" id="budgetRefreshBtn"><span class="spinner"></span>Refresh</button>';
+        html += '</div>';
+      }
     }
-    invoiceSectionHtml += '</div>';
+    html += '</div>'; // .finances-overview-card
 
-    // ── BUDGET OVERVIEW (always first) ──────────────────────────────────
-    html += '<div class="finances-section">';
-    html += '<div class="finances-section-label">Budget Overview</div>';
+    // ── INVOICES CARD ─────────────────────────────────────────────────
+    html += '<div class="finances-content-card">';
+    html += '<div class="finances-content-card-header">';
+    html += '<div class="finances-content-card-title">Invoices</div>';
+    html += '</div>';
+    html += '<div class="finances-content-card-body">';
+    if (invoicesLoading) {
+      html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices\u2026</span></div>';
+    } else if (!currentInvoices || currentInvoices.length === 0) {
+      html += '<div class="finances-invoices-empty">';
+      html += '<div class="finances-invoices-empty-icon">&#10003;</div>';
+      html += '<div class="finances-invoices-empty-title">No invoices yet</div>';
+      html += '<div class="finances-invoices-empty-msg">Invoices will appear here as your project progresses. Your builder will notify you when payment is due.</div>';
+      html += '</div>';
+    } else {
+      html += renderInvoicesSummaryBar();
+      html += buildInvoiceListHtml();
+    }
+    html += '</div>'; // .finances-content-card-body
+    html += '</div>'; // .finances-content-card (invoices)
 
-    if (hasSheet) {
-      if (budgetLoading || !budgetData) {
-        html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading budget…</span></div>';
-      } else if (budgetFetchError) {
-        html += '<div class="budget-fetch-error"><p class="budget-fetch-error-msg">&#9888; Could not load budget: ' + escapeHtml(budgetFetchError) + '</p>';
-        html += '<button class="btn btn-secondary btn-small" id="budgetRefreshBtn" style="margin-top:12px">Retry</button></div>';
-      } else {
-        var syncTime = budgetLastSynced
-          ? budgetLastSynced.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
-            budgetLastSynced.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-          : null;
-        if (syncTime) {
-          html += '<div class="budget-sync-row"><span class="budget-sync-info">Last synced: ' + escapeHtml(syncTime) + '</span>';
-          html += '<button class="budget-refresh-btn" id="budgetRefreshBtn"><span class="spinner"></span>Refresh</button></div>';
-        }
-        html += renderBudgetSummary(false);
-        html += '</div>'; // close Budget Overview section
-        html += invoiceSectionHtml;
-        // ── BUDGET BREAKDOWN ─────────────────────────────────────────────────────
-        html += '<div class="finances-section">';
-        html += '<div class="finances-section-label">Budget Breakdown</div>';
-        html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>'
-        html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
-        html += '</tr></thead><tbody>';
+    // ── BUDGET BREAKDOWN CARD ─────────────────────────────────────────
+    if (budgetLoaded) {
+      html += '<div class="finances-content-card">';
+      html += '<div class="finances-content-card-header">';
+      html += '<div class="finances-content-card-title">Budget Breakdown</div>';
+      html += '<div class="finances-content-card-desc">Tap any category to expand line items.</div>';
+      html += '</div>';
+      html += '<div class="finances-content-card-body--table">';
+      html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>';
+      html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
+      html += '</tr></thead><tbody>';
+
+      if (hasSheet) {
         var grandBudgetS = 0, grandActualS = 0, grandVarianceS = 0;
         budgetData.forEach(function(cat, catIndex) {
           var isOpen = budgetExpandedCategories[catIndex] === true;
@@ -3028,50 +3080,18 @@
           html += '<td style="padding-left:40px;font-weight:600;">TOTAL</td>';
           html += '<td>' + formatCurrency(cat.totalBudget) + '</td><td>' + formatCurrency(cat.totalActual) + '</td>';
           html += '<td class="' + tvClass + '">' + formatCurrency(cat.totalVariance) + '</td><td></td></tr>';
-          grandBudgetS += cat.budget; grandActualS += cat.actual; grandVarianceS += cat.variance;
+          grandBudgetS += cat.budget || 0; grandActualS += cat.actual || 0; grandVarianceS += cat.variance || 0;
         });
         var gvClassS = grandVarianceS < 0 ? 'variance-over' : 'variance-under';
         html += '<tr class="budget-row-grand"><td>TOTALS</td>';
         html += '<td>' + formatCurrency(grandBudgetS) + '</td><td>' + formatCurrency(grandActualS) + '</td>';
         html += '<td class="' + gvClassS + '">' + formatCurrency(grandVarianceS) + '</td><td></td></tr>';
-        html += '</tbody></table></div>';
-        html += '</div>'; // close Budget Breakdown section
-      }
-    } else {
-      if (firestoreBudgetLoading) {
-        html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading budget…</span></div>';
-        html += '</div>';
-        html += invoiceSectionHtml;
-      } else if (firestoreBudgetItems.length === 0) {
-        html += '<div class="empty-state"><div class="empty-state-icon">\ud83d\udcca</div><div class="empty-state-title">Budget Coming Soon</div>';
-        html += '<div class="empty-state-message">Your builder will add budget details here as the project progresses.</div></div>';
-        html += '</div>';
-        html += invoiceSectionHtml;
       } else {
-        // Schema-agnostic — works for both old (camelCase) and new (snake_case) seeded items
-        var isNew = firestoreBudgetItems.length > 0 && firestoreBudgetItems[0].cost_code !== undefined;
-        var totals = isNew ? getTemplatedBudgetTotals() : getFirestoreBudgetTotals();
-        var pctSpent = totals.budget > 0 ? Math.min(100, (totals.actual / totals.budget) * 100) : 0;
-        html += '<div class="budget-summary"><div class="budget-summary-main"><div class="budget-summary-amounts">';
-        html += '<div class="budget-amount-block"><span class="budget-amount-label">Total Budget</span><span class="budget-amount-value">' + formatCurrency(totals.budget) + '</span></div>';
-        html += '<div class="budget-amount-block"><span class="budget-amount-label">Total Spent</span><span class="budget-amount-value spent">' + formatCurrency(totals.actual) + '</span></div>';
-        html += '<div class="budget-amount-block"><span class="budget-amount-label">Remaining</span><span class="budget-amount-value remaining"' + (totals.variance < 0 ? ' style="color:#A0705A"' : '') + '>' + formatCurrency(totals.variance) + '</span></div>';
-        html += '</div><div class="budget-progress-bar"><div class="budget-progress-fill" style="width:' + pctSpent.toFixed(1) + '%;' + (pctSpent > 100 ? 'background:#A0705A' : '') + '"></div></div>';
-        html += '<div class="budget-progress-label">' + pctSpent.toFixed(1) + '% of budget spent</div>';
-        html += '</div></div>';
-        html += '</div>'; // close Budget Overview section
-        html += invoiceSectionHtml;
-        // ── BUDGET BREAKDOWN ─────────────────────────────────────────────────────
-        html += '<div class="finances-section">';
-        html += '<div class="finances-section-label">Budget Breakdown</div>';
-        html += '<div class="budget-table-wrapper"><table class="budget-table"><thead><tr>';
-        html += '<th>Cost Code</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th>';
-        html += '</tr></thead><tbody>';
+        var isNew2 = firestoreBudgetItems[0].cost_code !== undefined;
         var grandBudgetF = 0, grandActualF = 0;
-        // Group using schema-agnostic helpers
         var grouped2 = {};
         firestoreBudgetItems.forEach(function(it) {
-          if (isNew && !it.parent_code) return; // skip category headers in new schema
+          if (isNew2 && !it.parent_code) return;
           var cat = itemCatName(it) || 'Other';
           if (!grouped2[cat]) grouped2[cat] = [];
           grouped2[cat].push(it);
@@ -3112,10 +3132,13 @@
         html += '<tr class="budget-row-grand"><td>TOTALS</td>';
         html += '<td>' + formatCurrency(grandBudgetF) + '</td><td>' + formatCurrency(grandActualF) + '</td>';
         html += '<td class="' + gvClassF + '">' + formatCurrency(grandVarianceF) + '</td><td></td></tr>';
-        html += '</tbody></table></div>';
-        html += '</div>'; // close Budget Breakdown section
       }
+
+      html += '</tbody></table></div>';
+      html += '</div>'; // .finances-content-card-body--table
+      html += '</div>'; // .finances-content-card (breakdown)
     }
+
     return html;
   }
 

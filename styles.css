@@ -4727,3 +4727,225 @@ details[open] .finances-details-summary::before { content: '−'; }
   color: var(--text-secondary);
   margin: 0;
 }
+
+/* ================================================
+   FINANCES — CARD-BASED REDESIGN
+   ================================================ */
+
+/* Page title block */
+.finances-page-header {
+  margin-bottom: 28px;
+}
+.finances-page-title {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+.finances-page-subtitle {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin: 0;
+}
+
+/* Financial Overview hero card */
+.finances-overview-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent-warm);
+  border-radius: 10px;
+  padding: 24px 28px 22px;
+  margin-bottom: 20px;
+}
+.finances-overview-eyebrow {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-warm);
+  margin-bottom: 20px;
+}
+
+/* KPI row */
+.finances-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 20px;
+}
+.finances-kpi-item {
+  padding-right: 24px;
+}
+.finances-kpi-item + .finances-kpi-item {
+  border-left: 1px solid var(--border);
+  padding-left: 24px;
+  padding-right: 24px;
+}
+.finances-kpi-item:last-child {
+  padding-right: 0;
+}
+.finances-kpi-label {
+  font-family: var(--font-nav);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+.finances-kpi-value {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.finances-kpi-value.positive { color: #065F46; }
+.finances-kpi-value.negative { color: #924014; }
+
+/* Progress bar */
+.finances-progress-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.finances-progress-fill {
+  height: 100%;
+  background: var(--accent-warm);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* Sync row (Google Sheets) */
+.finances-sync-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+.finances-sync-label {
+  font-family: var(--font-nav);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* Empty budget state (inside overview card) */
+.finances-empty-budget {
+  padding: 12px 0 4px;
+}
+
+/* Generic content card (invoices, breakdown) */
+.finances-content-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.finances-content-card-header {
+  padding: 18px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.finances-content-card-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin: 0 0 2px;
+}
+.finances-content-card-desc {
+  font-family: var(--font-nav);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 3px 0 0;
+}
+.finances-content-card-body {
+  padding: 20px 24px;
+}
+.finances-content-card-body--table {
+  /* table extends to card edges */
+}
+.finances-content-card-body--table .budget-table-wrapper {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Empty invoices state */
+.finances-invoices-empty {
+  text-align: center;
+  padding: 36px 24px 32px;
+}
+.finances-invoices-empty-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #F0FAF6;
+  border: 1.5px solid #A7D9C4;
+  color: #065F46;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  font-weight: 600;
+}
+.finances-invoices-empty-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.finances-invoices-empty-msg {
+  font-family: var(--font-nav);
+  font-size: 13px;
+  color: var(--text-tertiary);
+  max-width: 300px;
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+/* Mobile: 2-column KPI grid */
+@media (max-width: 600px) {
+  .finances-kpi-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .finances-kpi-item {
+    padding: 0 16px 16px 0;
+  }
+  .finances-kpi-item + .finances-kpi-item {
+    padding: 0 0 16px 16px;
+  }
+  .finances-kpi-item:nth-child(3) {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 16px 16px 0 0;
+  }
+  .finances-kpi-item:nth-child(4) {
+    border-top: 1px solid var(--border);
+    padding: 16px 0 0 16px;
+  }
+  .finances-overview-card {
+    padding: 20px 20px 18px;
+  }
+  .finances-content-card-header {
+    padding: 16px 20px 14px;
+  }
+  .finances-content-card-body {
+    padding: 16px 20px;
+  }
+}
