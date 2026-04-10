@@ -2700,7 +2700,7 @@
         <div class="client-footer-item"><a href="mailto:${escapeAttr(PORTAL_CONFIG.supportEmail)}">${escapeHtml(PORTAL_CONFIG.supportEmail)}</a></div>
         ${phoneItem}
         <div class="client-footer-dot"></div>
-        <div class="client-footer-item" style="opacity:0.5;">Powered by Project Map</div>
+        <div class="client-footer-item" style="opacity:0.5;">Project Map — Powered by Dune</div>
       </footer>
     `;
   }
@@ -3655,6 +3655,7 @@
         ${adminView === 'clients' ? renderAdminClients() : ''}
         ${adminView === 'team' ? renderAdminTeam() : ''}
       </main>
+      <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Project Map — Powered by Dune</div></footer>
       ${showModal === 'addClient' ? renderAddClientModal() : ''}
       ${showModal === 'addEmployee' ? renderAddEmployeeModal() : ''}
       ${showModal === 'newProject' ? renderNewProjectModal() : ''}
@@ -5948,6 +5949,7 @@
       <main class="main-content">
         ${employeeView === 'overview' ? renderEmployeeOverview() : renderEmployeeDetail()}
       </main>
+      <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Project Map — Powered by Dune</div></footer>
       ${lightboxPhoto ? '<div class="photo-lightbox" id="photoLightbox"><img src="' + escapeAttr(lightboxPhoto.url) + '" alt="' + escapeAttr(lightboxPhoto.caption) + '"><div class="photo-lightbox-caption">' + escapeHtml(lightboxPhoto.caption) + '</div></div>' : ''}
     `;
   }
