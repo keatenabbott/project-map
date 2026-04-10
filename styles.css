@@ -785,7 +785,7 @@ h1, h2, h3, h4, h5, h6 {
 .admin-card-progress {
   width: 80px;
   height: 5px;
-  background: var(--border);
+  background: #D6D3CD;
   border-radius: 3px;
   overflow: hidden;
 }
@@ -3349,6 +3349,12 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-tertiary);
   padding: 0 4px;
   line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 2.6em;
 }
 
 .visual-timeline-phase.completed .visual-timeline-label { color: var(--text); font-weight: 600; }

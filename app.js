@@ -1639,10 +1639,12 @@
 
   function renderInvoicesSummaryBar() {
     var s = getInvoicesSummary();
-    var html = '<div class="invoice-summary">';
-    html += '<div class="invoice-summary-item"><div class="invoice-summary-label">Total Invoiced</div><div class="invoice-summary-value">' + formatCurrency(s.totalInvoiced) + '</div></div>';
-    html += '<div class="invoice-summary-item"><div class="invoice-summary-label">Total Paid</div><div class="invoice-summary-value" style="color:#065F46">' + formatCurrency(s.totalPaid) + '</div></div>';
-    html += '<div class="invoice-summary-item"><div class="invoice-summary-label">Outstanding</div><div class="invoice-summary-value" style="color:' + (s.totalOutstanding > 0 ? '#991B1B' : 'var(--text)') + '">' + formatCurrency(s.totalOutstanding) + '</div></div>';
+    var pctPaid = s.totalInvoiced > 0 ? (s.totalPaid / s.totalInvoiced * 100) : 0;
+    var html = '<div class="finances-kpi-row">';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Invoiced</div><div class="finances-kpi-value">' + formatCurrency(s.totalInvoiced) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Total Paid</div><div class="finances-kpi-value ' + (s.totalPaid > 0 ? 'positive' : '') + '">' + formatCurrency(s.totalPaid) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">Outstanding</div><div class="finances-kpi-value ' + (s.totalOutstanding > 0 ? 'negative' : '') + '">' + formatCurrency(s.totalOutstanding) + '</div></div>';
+    html += '<div class="finances-kpi-item"><div class="finances-kpi-label">% Paid</div><div class="finances-kpi-value">' + pctPaid.toFixed(1) + '%</div></div>';
     html += '</div>';
     return html;
   }
