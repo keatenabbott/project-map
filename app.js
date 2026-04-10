@@ -3046,7 +3046,7 @@
     // ── BUDGET BREAKDOWN CARD ─────────────────────────────────────────
     if (budgetLoaded) {
       html += '<div class="finances-content-card">';
-      html += '<div class="finances-content-card-header">';
+      html += '<div class="finances-content-card-header finances-content-card-header--dark">';
       html += '<div class="finances-content-card-title">Budget Breakdown</div>';
       html += '<div class="finances-content-card-desc">Tap any category to expand line items.</div>';
       html += '</div>';

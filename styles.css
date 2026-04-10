@@ -4949,3 +4949,25 @@ details[open] .finances-details-summary::before { content: '−'; }
     padding: 16px 20px;
   }
 }
+
+/* Budget Breakdown card — dark title header */
+.finances-content-card-header--dark {
+  background: var(--text);
+  border-bottom: none;
+  padding: 20px 24px 18px;
+  border-radius: 0; /* card handles the radius */
+}
+.finances-content-card-header--dark .finances-content-card-title {
+  color: #FFFFFF;
+  font-size: 18px;
+  letter-spacing: 0em;
+}
+.finances-content-card-header--dark .finances-content-card-desc {
+  color: rgba(255, 255, 255, 0.42);
+  margin-top: 4px;
+}
+@media (max-width: 600px) {
+  .finances-content-card-header--dark {
+    padding: 18px 20px 16px;
+  }
+}
