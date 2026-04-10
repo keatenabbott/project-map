@@ -24,8 +24,8 @@ const FIREBASE_CONFIG = {
 
 const PORTAL_CONFIG = {
   // Company & branding
-  companyName:     'PROJECT MAP',           // Shown in nav, headers, page title
-  tagline:         'Powered by Dune',       // Shown in footer and title bar
+  companyName:     'DUNE HOMES',            // Shown in nav, headers, page title
+  tagline:         'Client Portal',          // Shown in footer and title bar
   logoUrl:         '',                      // URL to logo image (leave empty for text-only)
 
   // Theme colors
