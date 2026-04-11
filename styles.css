@@ -547,7 +547,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: white;
+  background: var(--surface);
 }
 
 .timeline-item.upcoming .timeline-dot {
@@ -3884,7 +3884,7 @@ details[open] .finances-details-summary::before { content: '−'; }
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
 }
 .messages-thread {
   flex: 1;
@@ -3911,8 +3911,8 @@ details[open] .finances-details-summary::before { content: '−'; }
 }
 .message-bubble.received {
   align-self: flex-start;
-  background: #f0efeb;
-  color: #1a1a1a;
+  background: var(--bg-alt);
+  color: var(--text);
   border-bottom-left-radius: 4px;
 }
 .message-meta {
@@ -3954,11 +3954,11 @@ details[open] .finances-details-summary::before { content: '−'; }
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   outline: none;
 }
 .messages-input-area input:focus {
-  border-color: #1a1a1a;
+  border-color: var(--accent-warm);
 }
 .messages-input-area button {
   font-family: var(--font-nav);
@@ -3994,7 +3994,7 @@ details[open] .finances-details-summary::before { content: '−'; }
   margin-bottom: 4px;
 }
 .message-bubble.sent .update-title { color: #FAF9F6; }
-.message-bubble.received .update-title { color: #1a1a1a; }
+.message-bubble.received .update-title { color: var(--text); }
 
 .update-type-tag {
   display: inline-block;
@@ -4063,14 +4063,14 @@ details[open] .finances-details-summary::before { content: '−'; }
   padding: 9px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   outline: none;
   resize: none;
   min-height: 42px;
   max-height: 120px;
   line-height: 1.5;
 }
-.update-input-row textarea:focus { border-color: #1a1a1a; }
+.update-input-row textarea:focus { border-color: var(--accent-warm); }
 .update-send-btn {
   font-family: var(--font-nav);
   font-size: 10px;
@@ -4110,7 +4110,7 @@ details[open] .finances-details-summary::before { content: '−'; }
   cursor: pointer;
   white-space: nowrap;
 }
-.update-extras-btn:hover { border-color: #1a1a1a; color: #1a1a1a; }
+.update-extras-btn:hover { border-color: var(--accent-warm); color: var(--text); }
 .update-extras-btn input[type="file"] {
   position: absolute;
   width: 1px;
@@ -4141,7 +4141,7 @@ details[open] .finances-details-summary::before { content: '−'; }
   cursor: pointer;
   outline: none;
 }
-.update-type-select:hover, .update-type-select:focus { border-color: #1a1a1a; color: #1a1a1a; }
+.update-type-select:hover, .update-type-select:focus { border-color: var(--accent-warm); color: var(--text); }
 .update-title-toggle {
   font-family: var(--font-nav);
   font-size: 10px;
@@ -4166,10 +4166,10 @@ details[open] .finances-details-summary::before { content: '−'; }
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--surface);
   outline: none;
 }
-.update-title-row input:focus { border-color: #1a1a1a; }
+.update-title-row input:focus { border-color: var(--accent-warm); }
 .update-selected-files {
   font-family: var(--font-nav);
   font-size: 10px;
@@ -4190,7 +4190,7 @@ details[open] .finances-details-summary::before { content: '−'; }
   margin-bottom: 24px;
 }
 .dashboard-stat-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px;
@@ -4280,7 +4280,7 @@ details[open] .finances-details-summary::before { content: '−'; }
 .phase-calendar {
   width: 420px;
   flex-shrink: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
@@ -4452,7 +4452,7 @@ details[open] .finances-details-summary::before { content: '−'; }
 .dashboard-fieldnotes-viewall:hover { color: var(--text); }
 .dashboard-fn-item {
   padding: 12px 16px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   margin-bottom: 8px;
