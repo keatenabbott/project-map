@@ -1311,24 +1311,19 @@
     return step - 1;
   }
 
-  async function createClientAccount(email, password, name) {
-    // We use the Firebase Admin SDK pattern via a secondary app to avoid logging out the admin
-    // However, in client-side Firebase, creating a user logs you in as them.
-    // Workaround: save current user, create new user, then sign back in as admin.
-    const adminUser = auth.currentUser;
-    const adminEmail = userProfile.email;
-
-    // We can't get the admin's password, so we use a different approach:
-    // Create a secondary Firebase app instance for user creation
+  async function createClientAccount(email, name) {
+    // Create client via secondary Firebase app (avoids logging out the admin)
     let secondaryApp;
     try {
       secondaryApp = firebase.app('secondary');
     } catch(e) {
-      secondaryApp = firebase.initializeApp(firebaseConfig, 'secondary');
+      secondaryApp = firebase.initializeApp(FIREBASE_CONFIG, 'secondary');
     }
     const secondaryAuth = secondaryApp.auth();
 
-    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+    // Generate random temp password (client will set their own via welcome email)
+    const tempPassword = 'PM_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, tempPassword);
     const newUid = cred.user.uid;
 
     // Create Firestore profile
@@ -1343,6 +1338,11 @@
     // Sign out from secondary app
     await secondaryAuth.signOut();
 
+    // Send welcome/password-reset email so client can set their own password
+    await auth.sendPasswordResetEmail(email, {
+      url: PORTAL_CONFIG.portalUrl || window.location.origin
+    });
+
     return newUid;
   }
 
@@ -1351,7 +1351,7 @@
     try {
       secondaryApp = firebase.app('secondary');
     } catch(e) {
-      secondaryApp = firebase.initializeApp(firebaseConfig, 'secondary');
+      secondaryApp = firebase.initializeApp(FIREBASE_CONFIG, 'secondary');
     }
     const secondaryAuth = secondaryApp.auth();
 
@@ -6096,6 +6096,7 @@
       <div class="modal-overlay active" id="modalOverlay">
         <div class="modal">
           <h3>Add New Client</h3>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;">A welcome email will be sent so they can set their own password.</p>
           <form id="addClientForm">
             <div class="admin-form-row">
               <div class="admin-form-group admin-form-full">
@@ -6107,12 +6108,6 @@
               <div class="admin-form-group admin-form-full">
                 <label>Email</label>
                 <input class="admin-input" type="email" name="email" placeholder="alex@example.com" required>
-              </div>
-            </div>
-            <div class="admin-form-row">
-              <div class="admin-form-group admin-form-full">
-                <label>Temporary Password</label>
-                <input class="admin-input" type="text" name="password" placeholder="Min 6 characters" required minlength="6">
               </div>
             </div>
             <div class="login-error" id="modalError"></div>
@@ -7518,14 +7513,13 @@
 
       const fd = new FormData(this);
       const email = fd.get('email').trim().toLowerCase();
-      const password = fd.get('password');
       const name = fd.get('name').trim();
 
       try {
-        await createClientAccount(email, password, name);
+        await createClientAccount(email, name);
         await loadAllUsers();
         showModal = null;
-        showToast('Client added successfully.');
+        showToast('Welcome email sent to ' + email);
         render();
       } catch (err) {
         errEl.textContent = firebaseErrorMessage(err);
