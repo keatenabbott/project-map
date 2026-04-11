@@ -28,13 +28,13 @@ const PORTAL_CONFIG = {
   tagline:         'Client Portal',          // Shown in footer and title bar
   logoUrl:         '',                      // URL to logo image (leave empty for text-only)
 
-  // Theme colors
-  primaryColor:    '#1a1a1a',               // Nav bar, dark UI elements
+  // Theme colors (dark)
+  primaryColor:    '#E8E4DE',               // Light text on dark backgrounds
   accentColor:     '#C4A57B',               // Gold accent — buttons, borders, highlights
-  backgroundColor: '#FAF9F6',               // Page background
-  surfaceColor:    '#FFFFFF',               // Card backgrounds
-  borderColor:     '#e5e3de',               // Card/table borders
-  textSecondary:   '#8A7B6B',               // Muted text
+  backgroundColor: '#1A1A17',               // Dark page background
+  surfaceColor:    '#232320',               // Dark card backgrounds
+  borderColor:     '#3A3A35',               // Subtle dark borders
+  textSecondary:   '#8A857B',               // Muted text on dark
 
   // Portal URL (the custom domain for this builder's portal)
   portalUrl:       'https://portal.dunehomes.com',
