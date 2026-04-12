@@ -321,7 +321,7 @@
     } else {
       signaturePad = new SignaturePad(canvas, {
         backgroundColor: 'rgba(250,249,246,1)',
-        penColor: '#1a1a1a',
+        penColor: getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#1a1a1a',
         minWidth: 1,
         maxWidth: 2.5,
       });
@@ -2475,7 +2475,7 @@
             <div style="font-family:var(--font-nav);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:16px;">Something went wrong</div>
             <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px;">The page couldn't load correctly.</div>
             <div style="font-size:13px;color:var(--text-secondary);margin-bottom:28px;">This is usually temporary. Refreshing the page will fix it.</div>
-            <button onclick="window.location.reload()" style="font-family:var(--font-nav);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;background:var(--text);color:var(--background);border:none;border-radius:4px;padding:12px 24px;cursor:pointer;">Refresh Page</button>
+            <button onclick="window.location.reload()" style="font-family:var(--font-nav);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;background:var(--text);color:var(--bg);border:none;border-radius:4px;padding:12px 24px;cursor:pointer;">Refresh Page</button>
           </div>
         `;
       }

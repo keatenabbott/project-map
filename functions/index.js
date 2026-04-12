@@ -111,7 +111,7 @@ function buildWelcomeEmail({ clientName, companyName, accentColor, portalUrl, su
                 <a href="mailto:${supportEmail}" style="color:${accent};text-decoration:none;">${supportEmail}</a>
               </p>
               <p class="footer-text" style="margin:0;font-size:11px;color:#B4B4B4;text-align:center;letter-spacing:0.2px;">
-                Project Map &mdash; Powered by Dune
+                Project Map &mdash; Powered by ${companyName}
               </p>
             </td>
           </tr>
@@ -169,7 +169,10 @@ exports.sendWelcomeEmail = onCall(
 
     // Send via Resend
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const fromDomain = process.env.RESEND_FROM_DOMAIN || "yourdomain.com";
+    const fromDomain = process.env.RESEND_FROM_DOMAIN;
+    if (!fromDomain) {
+      throw new HttpsError("internal", "RESEND_FROM_DOMAIN not configured.");
+    }
     const fromAddress = `${companyName} <onboarding@${fromDomain}>`;
 
     let result;

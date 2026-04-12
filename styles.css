@@ -3905,8 +3905,8 @@ details[open] .finances-details-summary::before { content: '−'; }
 }
 .message-bubble.sent {
   align-self: flex-end;
-  background: #1a1a1a;
-  color: #FAF9F6;
+  background: var(--text);
+  color: var(--bg);
   border-bottom-right-radius: 4px;
 }
 .message-bubble.received {
@@ -3993,7 +3993,7 @@ details[open] .finances-details-summary::before { content: '−'; }
   letter-spacing: 0.04em;
   margin-bottom: 4px;
 }
-.message-bubble.sent .update-title { color: #FAF9F6; }
+.message-bubble.sent .update-title { color: var(--bg); }
 .message-bubble.received .update-title { color: var(--text); }
 
 .update-type-tag {
