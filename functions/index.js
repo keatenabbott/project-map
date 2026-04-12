@@ -127,6 +127,30 @@ function buildWelcomeEmail({ clientName, companyName, accentColor, portalUrl, su
 }
 
 // ---------------------------------------------------------------------------
+// Cloud Function — delete a client's Firebase Auth account
+// ---------------------------------------------------------------------------
+exports.deleteClientAccount = onCall(
+  { enforceAppCheck: false },
+  async (request) => {
+    const { uid } = request.data;
+    if (!uid) {
+      throw new HttpsError("invalid-argument", "Missing uid.");
+    }
+    try {
+      await admin.auth().deleteUser(uid);
+    } catch (err) {
+      // User may already be deleted from Auth
+      if (err.code !== 'auth/user-not-found') {
+        console.error("Failed to delete auth user:", err);
+        throw new HttpsError("internal", "Failed to delete user account.");
+      }
+    }
+    console.info(`Deleted auth account for uid: ${uid}`);
+    return { success: true };
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Cloud Function — generates real reset link + sends branded email
 // ---------------------------------------------------------------------------
 exports.sendWelcomeEmail = onCall(

@@ -93,7 +93,8 @@
   let adminSelectedProject = null;
   let adminPreviewClientView = false;
   let clientView = 'dashboard'; // dashboard | budget | photos | documents | selections | updates
-  let showModal = null;         // null | 'addClient' | 'newProject' | 'editProject' | 'addEmployee'
+  let showModal = null;         // null | 'addClient' | 'editClient' | 'newProject' | 'editProject' | 'addEmployee'
+  let editClientId = null;       // UID of client being edited
   let wizardState = null;       // multi-step new-project wizard state
 
   // ========================================
@@ -3672,6 +3673,7 @@
       </main>
       <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Project Map — Powered by Dune</div></footer>
       ${showModal === 'addClient' ? renderAddClientModal() : ''}
+      ${showModal === 'editClient' ? renderEditClientModal() : ''}
       ${showModal === 'addEmployee' ? renderAddEmployeeModal() : ''}
       ${showModal === 'newProject' ? renderNewProjectModal() : ''}
       ${showModal === 'editProject' ? renderEditProjectModal() : ''}
@@ -5882,6 +5884,7 @@
               <th>Email</th>
               <th>Project</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -5895,6 +5898,10 @@
           <td>${escapeHtml(client.email)}</td>
           <td>${project ? escapeHtml(project.name) : '<span style="color:var(--text-tertiary)">Unassigned</span>'}</td>
           <td>${project ? '<span class="table-status status-in-progress">Active</span>' : '<span class="table-status status-upcoming">No Project</span>'}</td>
+          <td style="text-align:right;white-space:nowrap;">
+            <button class="btn btn-secondary btn-small" data-edit-client="${client.id}" style="font-size:9px;padding:4px 10px;margin-right:4px;">Edit</button>
+            <button data-delete-client="${client.id}" data-delete-client-name="${escapeAttr(client.name)}" style="font-size:9px;padding:4px 10px;background:transparent;color:var(--text-tertiary);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:var(--font-nav);letter-spacing:0.08em;text-transform:uppercase;transition:all 0.15s;" onmouseover="this.style.borderColor='#e74c3c';this.style.color='#e74c3c'" onmouseout="this.style.borderColor='';this.style.color=''">Delete</button>
+          </td>
         </tr>
       `;
     });
@@ -6128,6 +6135,50 @@
             <div class="login-error" id="modalError"></div>
             <div class="btn-group">
               <button type="submit" class="btn btn-primary btn-small" id="modalSubmitBtn">Add Client</button>
+              <button type="button" class="btn btn-secondary btn-small" id="cancelModal">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderEditClientModal() {
+    var client = allUsers.find(function(u) { return u.id === editClientId; });
+    if (!client) return '';
+    var projectOptions = '<option value="">Unassigned</option>';
+    allProjects.forEach(function(p) {
+      var sel = (client.projectId === p.id) ? 'selected' : '';
+      projectOptions += '<option value="' + p.id + '" ' + sel + '>' + escapeHtml(p.name) + '</option>';
+    });
+    return `
+      <div class="modal-overlay active" id="modalOverlay">
+        <div class="modal">
+          <h3>Edit Client</h3>
+          <form id="editClientForm">
+            <input type="hidden" name="uid" value="${editClientId}">
+            <div class="admin-form-row">
+              <div class="admin-form-group admin-form-full">
+                <label>Full Name</label>
+                <input class="admin-input" type="text" name="name" value="${escapeAttr(client.name)}" required>
+              </div>
+            </div>
+            <div class="admin-form-row">
+              <div class="admin-form-group admin-form-full">
+                <label>Email</label>
+                <input class="admin-input" type="email" value="${escapeAttr(client.email)}" disabled style="opacity:0.5;">
+                <span style="font-size:10px;color:var(--text-tertiary);margin-top:4px;display:block;">Email cannot be changed after creation.</span>
+              </div>
+            </div>
+            <div class="admin-form-row">
+              <div class="admin-form-group admin-form-full">
+                <label>Assigned Project</label>
+                <select class="admin-select" name="projectId">${projectOptions}</select>
+              </div>
+            </div>
+            <div class="login-error" id="modalError"></div>
+            <div class="btn-group">
+              <button type="submit" class="btn btn-primary btn-small" id="modalSubmitBtn">Save Changes</button>
               <button type="button" class="btn btn-secondary btn-small" id="cancelModal">Cancel</button>
             </div>
           </form>
@@ -6760,6 +6811,40 @@
     document.getElementById('addClientBtn')?.addEventListener('click', () => {
       showModal = 'addClient';
       render();
+    });
+
+    // Edit client buttons
+    document.querySelectorAll('[data-edit-client]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        editClientId = btn.dataset.editClient;
+        showModal = 'editClient';
+        render();
+      });
+    });
+
+    // Delete client buttons
+    document.querySelectorAll('[data-delete-client]').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var uid = btn.dataset.deleteClient;
+        var name = btn.dataset.deleteClientName;
+        if (!confirm('Delete client "' + name + '"? This will remove their account and portal access.')) return;
+        try {
+          // Delete Firestore user doc
+          await db.collection('users').doc(uid).delete();
+          // Delete Auth account via Cloud Function
+          var deleteClientFn = firebase.functions().httpsCallable('deleteClientAccount');
+          await deleteClientFn({ uid: uid });
+          await loadAllUsers();
+          showToast('Client deleted.');
+          render();
+        } catch (err) {
+          // If Cloud Function fails, Firestore doc is already deleted
+          console.warn('Delete client error:', err.message);
+          await loadAllUsers();
+          showToast('Client removed. Auth account may need manual cleanup in Firebase Console.');
+          render();
+        }
+      });
     });
 
     // Add employee button
@@ -7540,6 +7625,45 @@
         errEl.textContent = firebaseErrorMessage(err);
         btn.disabled = false;
         btn.textContent = 'Add Client';
+      }
+    });
+
+    // Edit client form
+    document.getElementById('editClientForm')?.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('modalSubmitBtn');
+      var errEl = document.getElementById('modalError');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      errEl.textContent = '';
+
+      var fd = new FormData(this);
+      var uid = fd.get('uid');
+      var name = fd.get('name').trim();
+      var projectId = fd.get('projectId');
+
+      try {
+        // Update Firestore user doc
+        await db.collection('users').doc(uid).update({
+          name: name,
+          projectId: projectId || ''
+        });
+        // If project assigned, also update the project's clientId
+        if (projectId) {
+          await db.collection('projects').doc(projectId).update({
+            clientId: uid
+          });
+        }
+        await loadAllUsers();
+        await loadAllProjects();
+        showModal = null;
+        editClientId = null;
+        showToast('Client updated.');
+        render();
+      } catch (err) {
+        errEl.textContent = firebaseErrorMessage(err);
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
       }
     });
 
