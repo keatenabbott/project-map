@@ -11,7 +11,12 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "README.md"
+      "README.md",
+      "functions/**",
+      "node_modules/**",
+      "SETUP.md",
+      "config.template.js",
+      "setup-builder.sh"
     ],
     "headers": [
       {
