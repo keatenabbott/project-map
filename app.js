@@ -1338,10 +1338,25 @@
     // Sign out from secondary app
     await secondaryAuth.signOut();
 
-    // Send welcome/password-reset email so client can set their own password
-    await auth.sendPasswordResetEmail(email, {
-      url: PORTAL_CONFIG.portalUrl || window.location.origin
-    });
+    // Send branded welcome email via Cloud Function
+    // (generates real password reset link server-side + sends polished HTML email)
+    try {
+      var sendWelcomeEmail = firebase.functions().httpsCallable('sendWelcomeEmail');
+      await sendWelcomeEmail({
+        clientName: name,
+        clientEmail: email,
+        companyName: PORTAL_CONFIG.companyName,
+        accentColor: PORTAL_CONFIG.accentColor,
+        portalUrl: PORTAL_CONFIG.portalUrl || window.location.origin,
+        supportEmail: PORTAL_CONFIG.supportEmail
+      });
+    } catch (welcomeErr) {
+      // Non-fatal: account was created, but email failed. Fall back to generic Firebase email.
+      console.warn('Welcome email failed, falling back to Firebase reset:', welcomeErr.message);
+      await auth.sendPasswordResetEmail(email, {
+        url: PORTAL_CONFIG.portalUrl || window.location.origin
+      });
+    }
 
     return newUid;
   }
