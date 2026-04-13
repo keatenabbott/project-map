@@ -1,70 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper: get the current user's role from their profile
-    function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
-
-    function isAdmin() {
-      return request.auth != null && userRole() == 'admin';
-    }
-
-    function isEmployee() {
-      return request.auth != null && userRole() == 'employee';
-    }
-
-    function isClient() {
-      return request.auth != null && userRole() == 'client';
-    }
-
-    // ── settings/portal — publicly readable (setup check for fresh installs)
     match /settings/portal {
       allow read: if true;
-      allow write: if isAdmin();
     }
-
-    // ── costCodeTemplates — public read (needed for project creation wizard)
     match /costCodeTemplates/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
     }
-
-    // ── users — admin can read/write all; users can read own profile
-    // Self-writes restricted: clients cannot change role or projectId
-    match /users/{userId} {
-      allow read: if isAdmin() || request.auth.uid == userId;
-      allow write: if isAdmin();
-      allow update: if request.auth.uid == userId
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'projectId']));
-    }
-
-    // ── projects — admin/employee can read all; clients can only read their assigned project
-    match /projects/{projectId} {
-      allow read: if isAdmin() || isEmployee() ||
-        (isClient() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.projectId == projectId);
-      allow write: if isAdmin();
-
-      // All subcollections under a project (budgetItems, changeOrders, invoices, etc.)
-      match /{subcollection}/{docId} {
-        allow read: if isAdmin() || isEmployee() ||
-          (isClient() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.projectId == projectId);
-        allow write: if isAdmin();
-      }
-    }
-
-    // ── messages — admin can read/write all; clients can read/write their own project's messages
-    match /projects/{projectId}/messages/{messageId} {
-      allow read, write: if isAdmin() ||
-        (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.projectId == projectId);
-    }
-
-    // ── _qboAuth — only admin (used by QBO Cloud Functions)
-    match /_qboAuth/{docId} {
-      allow read, write: if isAdmin();
-    }
-
-    // ── Default deny — anything not matched above is blocked
   }
 }
