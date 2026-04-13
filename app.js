@@ -210,6 +210,7 @@
   let budgetAddingToCategory = null; // catCode where the add-line form is open
   let cachedTemplate = null;    // master template codes loaded from Firestore for restore
   let cachedTemplateLoading = false;
+  let cachedTemplateFailed = false; // prevents infinite retry loop on permission errors
   let editProjectData = null;
 
   // Admin detail sub-tab
@@ -4398,7 +4399,7 @@
 
   // Load master template into memory (once per session)
   async function loadMasterTemplateCache() {
-    if (cachedTemplate || cachedTemplateLoading) return;
+    if (cachedTemplate || cachedTemplateLoading || cachedTemplateFailed) return;
     cachedTemplateLoading = true;
     try {
       var snap = await db.collection('costCodeTemplates').doc('master_v1').collection('codes').get();
@@ -4407,10 +4408,11 @@
       console.log('[Restore] Template loaded: ' + cachedTemplate.length + ' codes');
     } catch(e) {
       console.error('[Restore] Failed to load template:', e);
+      cachedTemplateFailed = true;
     }
     cachedTemplateLoading = false;
-    // Re-render so missing-line counts appear
-    if (adminDetailTab === 'budget') render();
+    // Re-render so missing-line counts appear (only on success)
+    if (cachedTemplate && adminDetailTab === 'budget') render();
   }
 
   // Apply the same filters as seedProjectBudget to get what SHOULD be in this project
