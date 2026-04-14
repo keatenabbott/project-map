@@ -114,6 +114,8 @@
     if (appState === 'admin') {
       if (adminView === 'detail' && adminSelectedProject) {
         hash = '#project/' + adminSelectedProject + '/' + (adminDetailTab || 'details');
+      } else if (adminView === 'settings') {
+        hash = '#settings';
       } else {
         hash = '#admin';
       }
@@ -148,6 +150,8 @@
       } else if (hash === 'admin') {
         adminView = 'overview';
         adminSelectedProject = null;
+      } else if (hash === 'settings') {
+        adminView = 'settings';
       }
     } else if (appState === 'client') {
       if (CLIENT_HASH_TAB[hash]) {
@@ -3663,6 +3667,7 @@
           <button class="nav-link ${adminView === 'overview' || adminView === 'detail' ? 'active' : ''}" data-admin-nav="overview">Projects</button>
           <button class="nav-link ${adminView === 'clients' ? 'active' : ''}" data-admin-nav="clients">Clients</button>
           <button class="nav-link ${adminView === 'team' ? 'active' : ''}" data-admin-nav="team">Team</button>
+          <button class="nav-link ${adminView === 'settings' ? 'active' : ''}" data-admin-nav="settings">Settings</button>
           <button class="nav-link" id="logoutBtn">Logout</button>
         </div>
       </nav>
@@ -3671,6 +3676,7 @@
         ${adminView === 'detail' ? (adminPreviewClientView ? renderAdminClientPreview() : renderAdminDetail()) : ''}
         ${adminView === 'clients' ? renderAdminClients() : ''}
         ${adminView === 'team' ? renderAdminTeam() : ''}
+        ${adminView === 'settings' ? renderAdminSettings() : ''}
       </main>
       <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Project Map — Powered by Dune</div></footer>
       ${showModal === 'addClient' ? renderAddClientModal() : ''}
@@ -5469,59 +5475,48 @@
     var html = '<div class="budget-page-header"><h2 class="budget-page-title">Invoices</h2><p class="budget-page-subtitle">' + escapeHtml(project.name) + '</p></div>';
     html += '<div class="admin-section">';
 
-    // ── QBO CONNECTION BANNER ────────────────────────────────
+    // ── QBO SYNC BANNER (connect/disconnect moved to Settings) ──
     if (qboConnected) {
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#F0F7F0;border:1px solid #C3DFC3;border-radius:6px;margin-bottom:16px;">';
-      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:16px;">';
       html += '<span style="font-family:var(--font-nav);font-size:11px;font-weight:600;color:#1a7a1a;text-transform:uppercase;letter-spacing:0.08em;">&#10003; QuickBooks Connected</span>';
-      html += '</div>';
-      html += '<div style="display:flex;gap:8px;">';
       html += '<button class="btn btn-primary btn-small" id="syncQboBtn">Sync from QuickBooks</button>';
-      html += '<button class="btn btn-secondary btn-small" id="disconnectQboBtn" style="color:#991B1B;">Disconnect</button>';
-      html += '</div>';
       html += '</div>';
     } else {
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#FEF9F0;border:1px solid #E8D5A3;border-radius:6px;margin-bottom:16px;">';
-      html += '<div>';
-      html += '<div style="font-family:var(--font-nav);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);">QuickBooks Not Connected</div>';
-      html += '<div style="font-family:var(--font-nav);font-size:11px;color:var(--text-tertiary);margin-top:2px;">Connect to sync invoices automatically, or add manually below.</div>';
-      html += '</div>';
-      html += '<button class="btn btn-primary btn-small" id="connectQboBtn">Connect QuickBooks</button>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:16px;">';
+      html += '<span style="font-family:var(--font-nav);font-size:11px;color:var(--text-tertiary);">QuickBooks not connected. <a href="#" id="goToSettingsQbo" style="color:var(--accent-warm);">Go to Settings</a> to connect.</span>';
       html += '</div>';
     }
 
     // ── MANUAL INVOICE FORM (always shown as fallback) ───────
-    if (!qboConnected) {
-      html += '<div class="add-update-form"><h4>Add Invoice Manually</h4>';
-      html += '<form id="addInvoiceForm">';
-      html += '<div class="admin-form-row">';
-      html += '<div class="admin-form-group"><label>Title *</label>';
-      html += '<input class="admin-input" type="text" name="invTitle" placeholder="e.g. Draw #1 - Foundation" required></div>';
-      html += '<div class="admin-form-group"><label>Amount ($) *</label>';
-      html += '<input class="admin-input" type="number" name="invAmount" step="0.01" min="0" placeholder="e.g. 15000" required></div>';
-      html += '</div>';
-      html += '<div class="admin-form-row">';
-      html += '<div class="admin-form-group"><label>Status</label>';
-      html += '<select class="admin-select" name="invStatus">';
-      html += '<option value="pending">Pending</option>';
-      html += '<option value="sent">Sent</option>';
-      html += '<option value="paid">Paid</option>';
-      html += '<option value="overdue">Overdue</option>';
-      html += '</select></div>';
-      html += '<div class="admin-form-group"><label>Due Date</label>';
-      html += '<input class="admin-input" type="date" name="invDueDate"></div>';
-      html += '</div>';
-      html += '<div class="admin-form-row">';
-      html += '<div class="admin-form-group admin-form-full"><label>Invoice URL (QuickBooks or payment link)</label>';
-      html += '<input class="admin-input" type="url" name="invUrl" placeholder="https://..." autocomplete="off"></div>';
-      html += '</div>';
-      html += '<div class="admin-form-row">';
-      html += '<div class="admin-form-group admin-form-full"><label>Notes (optional)</label>';
-      html += '<textarea class="admin-input admin-textarea" name="invNotes" placeholder="Any notes for the client..."></textarea></div>';
-      html += '</div>';
-      html += '<div class="btn-group"><button type="submit" class="btn btn-primary btn-small" id="addInvoiceBtn">Add Invoice</button></div>';
-      html += '</form></div>';
-    }
+    html += '<div class="add-update-form"><h4>Add Invoice Manually</h4>';
+    html += '<form id="addInvoiceForm">';
+    html += '<div class="admin-form-row">';
+    html += '<div class="admin-form-group"><label>Title *</label>';
+    html += '<input class="admin-input" type="text" name="invTitle" placeholder="e.g. Draw #1 - Foundation" required></div>';
+    html += '<div class="admin-form-group"><label>Amount ($) *</label>';
+    html += '<input class="admin-input" type="number" name="invAmount" step="0.01" min="0" placeholder="e.g. 15000" required></div>';
+    html += '</div>';
+    html += '<div class="admin-form-row">';
+    html += '<div class="admin-form-group"><label>Status</label>';
+    html += '<select class="admin-select" name="invStatus">';
+    html += '<option value="pending">Pending</option>';
+    html += '<option value="sent">Sent</option>';
+    html += '<option value="paid">Paid</option>';
+    html += '<option value="overdue">Overdue</option>';
+    html += '</select></div>';
+    html += '<div class="admin-form-group"><label>Due Date</label>';
+    html += '<input class="admin-input" type="date" name="invDueDate"></div>';
+    html += '</div>';
+    html += '<div class="admin-form-row">';
+    html += '<div class="admin-form-group admin-form-full"><label>Invoice URL (QuickBooks or payment link)</label>';
+    html += '<input class="admin-input" type="url" name="invUrl" placeholder="https://..." autocomplete="off"></div>';
+    html += '</div>';
+    html += '<div class="admin-form-row">';
+    html += '<div class="admin-form-group admin-form-full"><label>Notes (optional)</label>';
+    html += '<textarea class="admin-input admin-textarea" name="invNotes" placeholder="Any notes for the client..."></textarea></div>';
+    html += '</div>';
+    html += '<div class="btn-group"><button type="submit" class="btn btn-primary btn-small" id="addInvoiceBtn">Add Invoice</button></div>';
+    html += '</form></div>';
 
     if (invoicesLoading) {
       html += '<div class="budget-loading"><div class="spinner-large"></div><span class="budget-loading-text">Loading invoices...</span></div>';
@@ -5741,28 +5736,29 @@
       }
     });
 
+    // QBO: Go to Settings link
+    document.getElementById('goToSettingsQbo')?.addEventListener('click', function(e) {
+      e.preventDefault();
+      adminView = 'settings';
+      adminSelectedProject = null;
+      render();
+    });
+
     // QBO: Connect
     document.getElementById('connectQboBtn')?.addEventListener('click', function() {
       var authUrl = getQboAuthUrl();
-      window.open(authUrl, '_blank');
-      this.textContent = 'Complete sign-in in the new window';
-      this.disabled = true;
+      if (authUrl) window.location.href = authUrl;
     });
 
     // QBO: Disconnect
     document.getElementById('disconnectQboBtn')?.addEventListener('click', async function() {
-      if (!confirm('Disconnect QuickBooks? You will need to reconnect to sync invoices.')) return;
-      var btn = document.getElementById('disconnectQboBtn');
-      btn.disabled = true;
-      btn.textContent = 'Disconnecting...';
+      if (!confirm('Disconnect QuickBooks? Invoice sync will stop for all projects.')) return;
       try {
         await disconnectQbo();
-        render();
         showToast('QuickBooks disconnected.');
+        render();
       } catch (err) {
         showToast('Error disconnecting: ' + (err.message || 'Unknown error'));
-        btn.disabled = false;
-        btn.textContent = 'Disconnect';
       }
     });
   }
@@ -5868,6 +5864,33 @@
         </div>
       </div>
     `;
+  }
+
+  function renderAdminSettings() {
+    var html = '<div class="admin-overview">';
+    html += '<div class="budget-page-header"><h2 class="budget-page-title">Settings</h2></div>';
+    html += '<div class="admin-section">';
+    html += '<h3 style="margin-bottom:12px;">QuickBooks Online</h3>';
+    if (qboConnected) {
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span style="font-family:var(--font-nav);font-size:11px;font-weight:600;color:#1a7a1a;text-transform:uppercase;letter-spacing:0.08em;">&#10003; QuickBooks Connected</span>';
+      html += '</div>';
+      html += '<button class="btn btn-secondary btn-small" id="disconnectQboBtn" style="color:#991B1B;">Disconnect</button>';
+      html += '</div>';
+      html += '<p style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">To sync invoices, go to a project\'s Invoices tab and click "Sync from QuickBooks". To assign a QBO customer, go to the project\'s Details tab.</p>';
+    } else {
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;">';
+      html += '<div>';
+      html += '<div style="font-family:var(--font-nav);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);">QuickBooks Not Connected</div>';
+      html += '<div style="font-family:var(--font-nav);font-size:11px;color:var(--text-tertiary);margin-top:2px;">Connect your QuickBooks account to sync invoices across all projects.</div>';
+      html += '</div>';
+      html += '<button class="btn btn-primary btn-small" id="connectQboBtn">Connect QuickBooks</button>';
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '</div>';
+    return html;
   }
 
   function renderAdminClients() {
