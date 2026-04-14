@@ -1,12 +1,282 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
 const { Resend } = require("resend");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
+const db = admin.firestore();
 
 const resendApiKey = defineSecret("RESEND_API_KEY");
 const resendFromDomain = defineSecret("RESEND_FROM_DOMAIN");
+const qboClientSecret = defineSecret("QBO_CLIENT_SECRET");
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUICKBOOKS ONLINE — OAuth + API
+// ═══════════════════════════════════════════════════════════════════════════
+
+const QBO_TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
+const QBO_API_BASE = "https://quickbooks.api.intuit.com/v3/company";
+const QBO_REVOKE_URL = "https://developer.api.intuit.com/v2/oauth2/tokens/revoke";
+
+// Helper: get stored QBO settings
+async function getQboSettings() {
+  const snap = await db.collection("settings").doc("qbo").get();
+  return snap.exists ? snap.data() : null;
+}
+
+// Helper: refresh access token if expired
+async function ensureFreshToken(settings) {
+  if (!settings || !settings.refreshToken) throw new Error("No QBO tokens stored");
+
+  // If token is still valid (with 5-min buffer), return as-is
+  if (settings.accessTokenExpiry && settings.accessTokenExpiry.toDate() > new Date(Date.now() + 5 * 60000)) {
+    return settings;
+  }
+
+  // Refresh the token
+  const clientId = settings.clientId;
+  const clientSecret = process.env.QBO_CLIENT_SECRET;
+  const basicAuth = Buffer.from(clientId + ":" + clientSecret).toString("base64");
+
+  const resp = await fetch(QBO_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Authorization": "Basic " + basicAuth,
+      "Accept": "application/json",
+    },
+    body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(settings.refreshToken),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    console.error("Token refresh failed:", errBody);
+    throw new Error("Failed to refresh QBO token");
+  }
+
+  const tokens = await resp.json();
+  const now = new Date();
+  const update = {
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token || settings.refreshToken,
+    accessTokenExpiry: new Date(now.getTime() + tokens.expires_in * 1000),
+    lastRefreshed: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await db.collection("settings").doc("qbo").update(update);
+  return Object.assign({}, settings, update);
+}
+
+// Helper: make QBO API call
+async function qboApiCall(settings, endpoint) {
+  const fresh = await ensureFreshToken(settings);
+  const url = QBO_API_BASE + "/" + fresh.realmId + endpoint;
+  const resp = await fetch(url, {
+    headers: {
+      "Authorization": "Bearer " + fresh.accessToken,
+      "Accept": "application/json",
+    },
+  });
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    console.error("QBO API error:", resp.status, errBody);
+    throw new Error("QBO API error: " + resp.status);
+  }
+  return resp.json();
+}
+
+// ---------------------------------------------------------------------------
+// qboProcessAuth — Firestore trigger: exchanges OAuth code for tokens
+// ---------------------------------------------------------------------------
+exports.qboProcessAuth = onDocumentCreated(
+  {
+    document: "_qboAuth/{docId}",
+    secrets: [qboClientSecret],
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const data = snap.data();
+    const docRef = snap.ref;
+
+    if (data.status !== "pending") return;
+
+    try {
+      const { code, realmId, callbackUrl } = data;
+      if (!code || !realmId) {
+        await docRef.update({ status: "error", error: "Missing code or realmId" });
+        return;
+      }
+
+      // Read client ID from the portal config stored in settings
+      // (or fall back to the one passed in the auth request)
+      const portalSnap = await db.collection("settings").doc("portal").get();
+      const portalData = portalSnap.exists ? portalSnap.data() : {};
+
+      // Get client ID from Firestore or use a default
+      const clientId = portalData.qboClientId || data.clientId || "";
+      const clientSecret = process.env.QBO_CLIENT_SECRET;
+
+      if (!clientId || !clientSecret) {
+        await docRef.update({ status: "error", error: "QBO credentials not configured" });
+        return;
+      }
+
+      // Build redirect URI from the callback URL
+      const callbackUrlObj = new URL(callbackUrl);
+      const redirectUri = callbackUrlObj.origin + callbackUrlObj.pathname;
+
+      const basicAuth = Buffer.from(clientId + ":" + clientSecret).toString("base64");
+
+      // Exchange auth code for tokens
+      const resp = await fetch(QBO_TOKEN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": "Basic " + basicAuth,
+          "Accept": "application/json",
+        },
+        body:
+          "grant_type=authorization_code" +
+          "&code=" + encodeURIComponent(code) +
+          "&redirect_uri=" + encodeURIComponent(redirectUri),
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.text();
+        console.error("QBO token exchange failed:", resp.status, errBody);
+        await docRef.update({ status: "error", error: "Token exchange failed: " + resp.status });
+        return;
+      }
+
+      const tokens = await resp.json();
+      const now = new Date();
+
+      // Store tokens in settings/qbo
+      await db.collection("settings").doc("qbo").set({
+        clientId: clientId,
+        realmId: realmId,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        accessTokenExpiry: new Date(now.getTime() + tokens.expires_in * 1000),
+        connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastRefreshed: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Mark auth as complete
+      await docRef.update({ status: "complete" });
+      console.info("QBO connected: realmId=" + realmId);
+
+    } catch (err) {
+      console.error("qboProcessAuth error:", err);
+      await docRef.update({ status: "error", error: err.message || "Unknown error" });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// qboProcessRequest — Firestore trigger: handles QBO API requests
+// ---------------------------------------------------------------------------
+exports.qboProcessRequest = onDocumentCreated(
+  {
+    document: "_qboRequests/{docId}",
+    secrets: [qboClientSecret],
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const data = snap.data();
+    const docRef = snap.ref;
+
+    if (data.status !== "pending") return;
+
+    try {
+      const settings = await getQboSettings();
+      if (!settings) {
+        await docRef.update({ status: "error", error: "QuickBooks not connected" });
+        return;
+      }
+
+      let results = [];
+
+      switch (data.type) {
+        case "getCustomers": {
+          const resp = await qboApiCall(settings, "/query?query=" + encodeURIComponent("SELECT * FROM Customer MAXRESULTS 1000"));
+          const customers = (resp.QueryResponse && resp.QueryResponse.Customer) || [];
+          results = customers.map((c) => ({
+            id: c.Id,
+            displayName: c.DisplayName,
+            email: c.PrimaryEmailAddr ? c.PrimaryEmailAddr.Address : "",
+            phone: c.PrimaryPhone ? c.PrimaryPhone.FreeFormNumber : "",
+          }));
+          break;
+        }
+
+        case "getInvoices": {
+          let query = "SELECT * FROM Invoice MAXRESULTS 1000";
+          if (data.customerId) {
+            query = "SELECT * FROM Invoice WHERE CustomerRef = '" + data.customerId + "' MAXRESULTS 1000";
+          }
+          const resp = await qboApiCall(settings, "/query?query=" + encodeURIComponent(query));
+          const invoices = (resp.QueryResponse && resp.QueryResponse.Invoice) || [];
+          results = invoices.map((inv) => ({
+            id: inv.Id,
+            docNumber: inv.DocNumber || "",
+            txnDate: inv.TxnDate || "",
+            dueDate: inv.DueDate || "",
+            totalAmt: inv.TotalAmt || 0,
+            balance: inv.Balance || 0,
+            status: inv.Balance === 0 ? "paid" : (new Date(inv.DueDate) < new Date() ? "overdue" : "pending"),
+            customerName: inv.CustomerRef ? inv.CustomerRef.name : "",
+          }));
+          break;
+        }
+
+        case "disconnect": {
+          // Revoke the refresh token
+          const clientId = settings.clientId;
+          const clientSecret = process.env.QBO_CLIENT_SECRET;
+          const basicAuth = Buffer.from(clientId + ":" + clientSecret).toString("base64");
+
+          try {
+            await fetch(QBO_REVOKE_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Basic " + basicAuth,
+              },
+              body: JSON.stringify({ token: settings.refreshToken }),
+            });
+          } catch (revokeErr) {
+            console.warn("Token revoke failed (non-fatal):", revokeErr.message);
+          }
+
+          // Delete stored tokens
+          await db.collection("settings").doc("qbo").delete();
+          results = [];
+          console.info("QBO disconnected");
+          break;
+        }
+
+        default:
+          await docRef.update({ status: "error", error: "Unknown request type: " + data.type });
+          return;
+      }
+
+      await docRef.update({ status: "complete", results: results });
+
+    } catch (err) {
+      console.error("qboProcessRequest error:", err);
+      await docRef.update({ status: "error", error: err.message || "Unknown error" });
+    }
+  }
+);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WELCOME EMAIL + CLIENT MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
 
 // ---------------------------------------------------------------------------
 // HTML email template
@@ -127,7 +397,7 @@ function buildWelcomeEmail({ clientName, companyName, accentColor, portalUrl, su
 }
 
 // ---------------------------------------------------------------------------
-// Cloud Function — delete a client's Firebase Auth account
+// deleteClientAccount — HTTPS callable: deletes Firebase Auth user
 // ---------------------------------------------------------------------------
 exports.deleteClientAccount = onCall(
   { enforceAppCheck: false },
@@ -139,8 +409,7 @@ exports.deleteClientAccount = onCall(
     try {
       await admin.auth().deleteUser(uid);
     } catch (err) {
-      // User may already be deleted from Auth
-      if (err.code !== 'auth/user-not-found') {
+      if (err.code !== "auth/user-not-found") {
         console.error("Failed to delete auth user:", err);
         throw new HttpsError("internal", "Failed to delete user account.");
       }
@@ -151,7 +420,7 @@ exports.deleteClientAccount = onCall(
 );
 
 // ---------------------------------------------------------------------------
-// Cloud Function — generates real reset link + sends branded email
+// sendWelcomeEmail — HTTPS callable: branded welcome email via Resend
 // ---------------------------------------------------------------------------
 exports.sendWelcomeEmail = onCall(
   {
@@ -161,7 +430,6 @@ exports.sendWelcomeEmail = onCall(
   async (request) => {
     const { clientName, clientEmail, companyName, accentColor, portalUrl, supportEmail } = request.data;
 
-    // Validate
     const missing = ["clientName", "clientEmail", "companyName", "supportEmail"].filter((k) => !request.data[k]);
     if (missing.length) {
       throw new HttpsError("invalid-argument", "Missing: " + missing.join(", "));
@@ -170,7 +438,6 @@ exports.sendWelcomeEmail = onCall(
       throw new HttpsError("invalid-argument", "Invalid email address.");
     }
 
-    // Generate real password reset link via Admin SDK
     let resetLink;
     try {
       resetLink = await admin.auth().generatePasswordResetLink(clientEmail, {
@@ -181,7 +448,6 @@ exports.sendWelcomeEmail = onCall(
       throw new HttpsError("internal", "Failed to generate password reset link.");
     }
 
-    // Build email HTML
     const html = buildWelcomeEmail({
       clientName,
       companyName,
@@ -191,7 +457,6 @@ exports.sendWelcomeEmail = onCall(
       resetLink,
     });
 
-    // Send via Resend
     const resend = new Resend(process.env.RESEND_API_KEY);
     const fromDomain = process.env.RESEND_FROM_DOMAIN;
     if (!fromDomain) {

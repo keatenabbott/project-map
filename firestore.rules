@@ -66,8 +66,16 @@ service cloud.firestore {
         (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.projectId == projectId);
     }
 
-    // ── _qboAuth — only admin (used by QBO Cloud Functions)
+    // ── _qboAuth + _qboRequests — only admin (used by QBO Cloud Functions)
     match /_qboAuth/{docId} {
+      allow read, write: if isAdmin();
+    }
+    match /_qboRequests/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── settings/qbo — admin only (QBO tokens)
+    match /settings/qbo {
       allow read, write: if isAdmin();
     }
 
