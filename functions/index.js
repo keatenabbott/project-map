@@ -395,7 +395,7 @@ function buildWelcomeEmail({ clientName, companyName, accentColor, portalUrl, su
 // deleteClientAccount — HTTPS callable: deletes Firebase Auth user
 // ---------------------------------------------------------------------------
 exports.deleteClientAccount = onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, invoker: "public" },
   async (request) => {
     const { uid } = request.data;
     if (!uid) {
@@ -421,6 +421,7 @@ exports.sendWelcomeEmail = onCall(
   {
     secrets: [resendApiKey, resendFromDomain],
     enforceAppCheck: false,
+    invoker: "public",
   },
   async (request) => {
     const { clientName, clientEmail, companyName, accentColor, portalUrl, supportEmail } = request.data;

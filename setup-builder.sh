@@ -171,16 +171,70 @@ sed -i "s/\"site\": \"[^\"]*\"/\"site\": \"${PROJECT_ID}\"/" "$PORTAL_DIR/fireba
 
 echo "  ✓ Firebase references updated"
 
-# ── Step 7: Deploy ──────────────────────────────────────────
+# ── Step 7: Set Resend email secrets ──────────────────────────
 
+echo "→ Setting Resend email secrets..."
+echo "  (These are shared across all builders — same Resend account)"
+echo ""
+echo "  Paste the RESEND_API_KEY when prompted (same key you use for Dune):"
+npx firebase-tools functions:secrets:set RESEND_API_KEY --project "$PROJECT_ID"
+echo ""
+echo "  Paste the RESEND_FROM_DOMAIN when prompted (e.g., buildprojectmap.com):"
+npx firebase-tools functions:secrets:set RESEND_FROM_DOMAIN --project "$PROJECT_ID"
+echo "  ✓ Resend secrets configured"
+
+# ── Step 8: Deploy rules + functions + hosting ─────────────────
+
+echo ""
 echo "→ Deploying Firestore rules..."
 cd "$PORTAL_DIR"
 npx firebase-tools deploy --only firestore:rules --project "$PROJECT_ID"
 
+echo "→ Deploying Cloud Functions..."
+cd "$MASTER_DIR"
+npx firebase-tools deploy --only functions --project "$PROJECT_ID" --force
+
 echo "→ Deploying to Firebase Hosting..."
+cd "$PORTAL_DIR"
 npx firebase-tools deploy --only hosting --project "$PROJECT_ID"
 
-# ── Done ────────────────────────────────────────────────────
+# ── Step 9: Seed cost code template ──────────────────────────────
+
+echo ""
+echo "→ Seeding cost code template..."
+TEMPLATE_FILE="$PORTAL_DIR/cost-code-template.json"
+if [ -f "$TEMPLATE_FILE" ]; then
+  node -e "
+    const admin = require('firebase-admin');
+    const fs = require('fs');
+    admin.initializeApp({ projectId: '$PROJECT_ID' });
+    const db = admin.firestore();
+    const data = JSON.parse(fs.readFileSync('$TEMPLATE_FILE', 'utf8'));
+    const batch = db.batch();
+    if (Array.isArray(data)) {
+      batch.set(db.collection('costCodeTemplates').doc('master_v1'), {
+        name: 'Master Residential', version: 'master_v1',
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      data.forEach(function(code, i) {
+        var ref = db.collection('costCodeTemplates').doc('master_v1').collection('codes').doc(code.cost_code || ('code_' + i));
+        batch.set(ref, code);
+      });
+    }
+    batch.commit().then(function() {
+      console.log('  ✓ ' + data.length + ' cost codes seeded');
+      process.exit(0);
+    }).catch(function(err) {
+      console.error('  ✗ Seeding failed:', err.message);
+      console.log('  The template will auto-seed on first project creation.');
+      process.exit(0);
+    });
+  " || echo "  ⚠ Template seeding skipped. Will auto-seed on first project creation."
+else
+  echo "  ⚠ cost-code-template.json not found. Skipping."
+fi
+
+# ── Step 10: IAM reminder ────────────────────────────────────────
 
 echo ""
 echo "========================================="
@@ -190,6 +244,15 @@ echo ""
 echo "  URL:     https://${PROJECT_ID}.web.app"
 echo "  Folder:  $PORTAL_DIR"
 echo ""
-echo "  Next: visit the URL and create the admin account."
-echo "  To redeploy: cd $PORTAL_DIR && npx firebase-tools deploy --only hosting"
+echo "  ⚠ ONE MANUAL STEP REMAINING:"
+echo "  Grant Firebase Auth Admin to the compute service account"
+echo "  so the welcome email can generate password reset links."
+echo ""
+echo "  → Go to: console.cloud.google.com/iam-admin/iam?project=${PROJECT_ID}"
+echo "  → Find: [PROJECT_NUMBER]-compute@developer.gserviceaccount.com"
+echo "  → Add role: Firebase Authentication Admin"
+echo "  → Save"
+echo ""
+echo "  After that, visit the URL and create the admin account."
+echo "  To redeploy: cd $PORTAL_DIR && npx firebase-tools deploy --only hosting --project $PROJECT_ID"
 echo ""
