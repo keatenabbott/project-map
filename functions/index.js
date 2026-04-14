@@ -10,6 +10,7 @@ const db = admin.firestore();
 const resendApiKey = defineSecret("RESEND_API_KEY");
 const resendFromDomain = defineSecret("RESEND_FROM_DOMAIN");
 const qboClientSecret = defineSecret("QBO_CLIENT_SECRET");
+const qboClientId = defineSecret("QBO_CLIENT_ID");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // QUICKBOOKS ONLINE — OAuth + API
@@ -92,7 +93,7 @@ async function qboApiCall(settings, endpoint) {
 exports.qboProcessAuth = onDocumentCreated(
   {
     document: "_qboAuth/{docId}",
-    secrets: [qboClientSecret],
+    secrets: [qboClientSecret, qboClientId],
   },
   async (event) => {
     const snap = event.data;
@@ -109,13 +110,7 @@ exports.qboProcessAuth = onDocumentCreated(
         return;
       }
 
-      // Read client ID from the portal config stored in settings
-      // (or fall back to the one passed in the auth request)
-      const portalSnap = await db.collection("settings").doc("portal").get();
-      const portalData = portalSnap.exists ? portalSnap.data() : {};
-
-      // Get client ID from Firestore or use a default
-      const clientId = portalData.qboClientId || data.clientId || "";
+      const clientId = process.env.QBO_CLIENT_ID || "";
       const clientSecret = process.env.QBO_CLIENT_SECRET;
 
       if (!clientId || !clientSecret) {
@@ -181,7 +176,7 @@ exports.qboProcessAuth = onDocumentCreated(
 exports.qboProcessRequest = onDocumentCreated(
   {
     document: "_qboRequests/{docId}",
-    secrets: [qboClientSecret],
+    secrets: [qboClientSecret, qboClientId],
   },
   async (event) => {
     const snap = event.data;
