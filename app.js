@@ -5548,6 +5548,9 @@
         html += '<div class="finances-invoices-empty"><div class="finances-invoices-empty-icon">PM</div><div class="finances-invoices-empty-title">No Invoices Yet</div><div class="finances-invoices-empty-msg">Add an invoice above or connect QuickBooks to sync automatically.</div></div>';
       }
     } else {
+      html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">';
+      html += '<button class="btn btn-danger btn-small" id="clearAllInvoicesBtn" style="font-size:10px;">Clear All Invoices</button>';
+      html += '</div>';
       currentInvoices.forEach(function(inv) {
         var isPaid = inv.status === 'paid';
         html += '<div class="invoice-item' + (isPaid ? ' is-paid' : '') + '">';
@@ -5574,6 +5577,7 @@
           html += '<button class="btn btn-danger btn-small" data-delete-invoice="' + inv.id + '">Delete</button>';
         } else {
           html += '<span style="font-family:var(--font-nav);font-size:10px;color:var(--text-tertiary);">Source: QuickBooks</span>';
+          html += '<button class="btn btn-danger btn-small" data-delete-invoice="' + inv.id + '">Delete</button>';
         }
         html += '</div>';
         html += '</div>';
@@ -5748,6 +5752,29 @@
         showToast('QBO sync error: ' + (err.message || 'Unknown error'));
         btn.disabled = false;
         btn.textContent = 'Sync from QuickBooks';
+      }
+    });
+
+    // Clear All Invoices
+    document.getElementById('clearAllInvoicesBtn')?.addEventListener('click', async function() {
+      var count = currentInvoices.length;
+      if (!confirm('Delete all ' + count + ' invoices for this project? This cannot be undone.')) return;
+      var btn = document.getElementById('clearAllInvoicesBtn');
+      btn.disabled = true;
+      btn.textContent = 'Clearing...';
+      try {
+        var batch = db.batch();
+        currentInvoices.forEach(function(inv) {
+          var ref = db.collection('projects').doc(adminSelectedProject).collection('invoices').doc(inv.id);
+          batch.delete(ref);
+        });
+        await batch.commit();
+        await loadInvoices(adminSelectedProject);
+        showToast('All invoices cleared.');
+      } catch (err) {
+        showToast('Error clearing invoices: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Clear All Invoices';
       }
     });
 
