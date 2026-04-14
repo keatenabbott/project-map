@@ -9,60 +9,180 @@
   // Apply config colors to ALL CSS custom properties
   // Helper: lighten a hex color by mixing with white
   function lightenColor(hex, amount) {
+    hex = hex || '#888888';
     var r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
     r = Math.round(r + (255 - r) * amount); g = Math.round(g + (255 - g) * amount); b = Math.round(b + (255 - b) * amount);
     return '#' + [r,g,b].map(function(c) { return c.toString(16).padStart(2,'0'); }).join('');
   }
   // Helper: darken a hex color by mixing with black
   function darkenColor(hex, amount) {
+    hex = hex || '#888888';
     var r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
     r = Math.round(r * (1 - amount)); g = Math.round(g * (1 - amount)); b = Math.round(b * (1 - amount));
     return '#' + [r,g,b].map(function(c) { return c.toString(16).padStart(2,'0'); }).join('');
   }
 
-  var root = document.documentElement.style;
-  var cfg = PORTAL_CONFIG;
+  function applyTheme(cfg) {
+    cfg = cfg || {};
+    var root = document.documentElement.style;
 
-  // Core colors from config
-  root.setProperty('--primary', cfg.primaryColor);
-  root.setProperty('--text', cfg.primaryColor);
-  root.setProperty('--in-progress', cfg.primaryColor);
+    // Core colors from config (with defaults)
+    var primary = cfg.primaryColor || '#E8E4DE';
+    var accent = cfg.accentColor || '#C4A57B';
+    var bg = cfg.backgroundColor || '#1A1A17';
+    var surface = cfg.surfaceColor || '#232320';
+    var border = cfg.borderColor || '#3A3A35';
+    var textSec = cfg.textSecondary || '#8A857B';
 
-  root.setProperty('--accent', cfg.accentColor);
-  root.setProperty('--accent-warm', cfg.accentColor);
-  root.setProperty('--accent-warm-light', lightenColor(cfg.accentColor, 0.55));
+    root.setProperty('--primary', primary);
+    root.setProperty('--text', primary);
+    root.setProperty('--in-progress', primary);
 
-  root.setProperty('--bg', cfg.backgroundColor);
-  root.setProperty('--bg-alt', darkenColor(cfg.backgroundColor, 0.03));
-  root.setProperty('--in-progress-bg', darkenColor(cfg.backgroundColor, 0.03));
-  root.setProperty('--success-bg', darkenColor(cfg.backgroundColor, 0.03));
+    root.setProperty('--accent', accent);
+    root.setProperty('--accent-warm', accent);
+    root.setProperty('--accent-warm-light', lightenColor(accent, 0.55));
 
-  root.setProperty('--surface', cfg.surfaceColor || '#FFFFFF');
-  root.setProperty('--surface-hover', darkenColor(cfg.surfaceColor || '#FFFFFF', 0.02));
+    root.setProperty('--bg', bg);
+    root.setProperty('--bg-alt', darkenColor(bg, 0.03));
+    root.setProperty('--in-progress-bg', darkenColor(bg, 0.03));
+    root.setProperty('--success-bg', darkenColor(bg, 0.03));
 
-  root.setProperty('--border', cfg.borderColor);
-  root.setProperty('--border-light', lightenColor(cfg.borderColor, 0.3));
+    root.setProperty('--surface', surface);
+    root.setProperty('--surface-hover', darkenColor(surface, 0.02));
 
-  root.setProperty('--text-secondary', cfg.textSecondary);
-  root.setProperty('--text-tertiary', lightenColor(cfg.textSecondary, 0.3));
-  root.setProperty('--success', cfg.textSecondary);
+    root.setProperty('--border', border);
+    root.setProperty('--border-light', lightenColor(border, 0.3));
 
-  // Apply page title from config
-  document.title = PORTAL_CONFIG.companyName + ' — ' + PORTAL_CONFIG.tagline;
+    root.setProperty('--text-secondary', textSec);
+    root.setProperty('--text-tertiary', lightenColor(textSec, 0.3));
+    root.setProperty('--success', textSec);
+  }
 
-  // Update favicon dynamically from config — clean initial-based mark
-  (function() {
-    var initial = (PORTAL_CONFIG.companyName || 'P').charAt(0);
-    var svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='" + PORTAL_CONFIG.primaryColor + "'/><text x='16' y='22' text-anchor='middle' font-family='Arial,sans-serif' font-size='18' font-weight='700' fill='" + PORTAL_CONFIG.accentColor + "'>" + initial + "</text></svg>";
-    var link = document.querySelector("link[rel='icon']");
-    if (link) link.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
-  })();
+  // Apply defaults on load — tenant branding applied after initTenant()
+  applyTheme(TENANT_CONFIG);
 
   // Initialize Firebase from config.js
   const app = firebase.initializeApp(FIREBASE_CONFIG);
   const auth = firebase.auth();
   const db = firebase.firestore();
   const storage = firebase.storage();
+
+  // ── Multi-tenant globals ──
+  var currentTenantId = null;
+  var tenantRef = null;       // db.collection('tenants').doc(tenantId)
+  var TENANT_CONFIG = {};     // Loaded from tenant doc in Firestore
+
+  // ── Tenant Resolution ──
+  function resolveTenantFromUrl() {
+    var hostname = window.location.hostname;
+
+    // localhost dev: use ?tenant= query param
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      var params = new URLSearchParams(window.location.search);
+      return params.get('tenant') || null;
+    }
+
+    // Subdomain: extract from *.buildprojectmap.com
+    if (hostname.endsWith('.buildprojectmap.com')) {
+      return hostname.split('.')[0];
+    }
+
+    // Custom domain (e.g., portal.dunehomes.com) — return hostname for domain lookup
+    return hostname;
+  }
+
+  async function initTenant() {
+    var tenantIdOrHostname = resolveTenantFromUrl();
+    if (!tenantIdOrHostname) {
+      console.error('Cannot resolve tenant from URL');
+      return false;
+    }
+
+    // Check if it's a subdomain ID or a custom domain hostname
+    var resolvedTenantId = tenantIdOrHostname;
+
+    // If it looks like a full hostname (contains dots), look it up in domains collection
+    if (tenantIdOrHostname.includes('.')) {
+      try {
+        var domainDoc = await db.collection('domains').doc(tenantIdOrHostname).get();
+        if (domainDoc.exists) {
+          resolvedTenantId = domainDoc.data().tenantId;
+        } else {
+          console.error('Unknown domain:', tenantIdOrHostname);
+          return false;
+        }
+      } catch (err) {
+        console.error('Domain lookup failed:', err);
+        return false;
+      }
+    }
+
+    // Check localStorage cache
+    var cacheKey = 'pm_tenant_' + resolvedTenantId;
+    var cached = null;
+    try {
+      var raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        // 10 minute TTL
+        if (Date.now() - parsed.ts < 10 * 60 * 1000) {
+          cached = parsed.data;
+        } else {
+          localStorage.removeItem(cacheKey);
+        }
+      }
+    } catch (e) {}
+
+    if (cached) {
+      currentTenantId = resolvedTenantId;
+      tenantRef = db.collection('tenants').doc(resolvedTenantId);
+      TENANT_CONFIG = cached;
+      applyTheme(TENANT_CONFIG);
+      updateBranding();
+      return true;
+    }
+
+    // Fetch from Firestore
+    try {
+      var tenantDoc = await db.collection('tenants').doc(resolvedTenantId).get();
+      if (!tenantDoc.exists) {
+        console.error('Tenant not found:', resolvedTenantId);
+        return false;
+      }
+
+      currentTenantId = resolvedTenantId;
+      tenantRef = db.collection('tenants').doc(resolvedTenantId);
+      TENANT_CONFIG = tenantDoc.data();
+
+      // Cache it
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ data: TENANT_CONFIG, ts: Date.now() }));
+      } catch (e) {}
+
+      applyTheme(TENANT_CONFIG);
+      updateBranding();
+      return true;
+    } catch (err) {
+      console.error('Failed to load tenant:', err);
+      return false;
+    }
+  }
+
+  function updateBranding() {
+    // Update page title
+    document.title = (TENANT_CONFIG.companyName || 'Project Map') + ' — ' + (TENANT_CONFIG.tagline || 'Client Portal');
+
+    // Update favicon
+    var link = document.querySelector("link[rel='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    var firstChar = (TENANT_CONFIG.companyName || 'P').charAt(0).toUpperCase();
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="16" fill="' + (TENANT_CONFIG.primaryColor || '#E8E4DE') + '"/><text x="50" y="68" text-anchor="middle" font-family="system-ui" font-size="52" font-weight="700" fill="' + (TENANT_CONFIG.accentColor || '#C4A57B') + '">' + firstChar + '</text></svg>';
+    link.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
 
   // Persist auth across browser sessions
   auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
@@ -159,7 +279,7 @@
   }
 
   function updateTitle() {
-    var base = PORTAL_CONFIG.companyName || 'Project Map';
+    var base = TENANT_CONFIG.companyName || 'Project Map';
     var title = base;
     if (appState === 'admin') {
       if (adminView === 'detail' && adminSelectedProject) {
@@ -433,7 +553,7 @@
   async function sendEmailNotification(to, subject, htmlBody) {
     if (!to) return;
     try {
-      await db.collection('mail').add({
+      await tenantRef.collection('mail').add({
         to: to,
         message: { subject: subject, html: htmlBody }
       });
@@ -443,20 +563,20 @@
   }
 
   function buildEmailHtml(projectName, heading, bodyContent) {
-    return '<div style="max-width:600px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;color:' + PORTAL_CONFIG.primaryColor + ';">' +
-      '<div style="background:' + PORTAL_CONFIG.primaryColor + ';padding:20px 24px;">' +
-        '<h1 style="margin:0;font-size:18px;font-weight:800;color:' + PORTAL_CONFIG.backgroundColor + ';letter-spacing:0.05em;">' + PORTAL_CONFIG.companyName + '</h1>' +
-        '<p style="margin:4px 0 0;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.15em;">' + PORTAL_CONFIG.tagline + '</p>' +
+    return '<div style="max-width:600px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;color:' + TENANT_CONFIG.primaryColor + ';">' +
+      '<div style="background:' + TENANT_CONFIG.primaryColor + ';padding:20px 24px;">' +
+        '<h1 style="margin:0;font-size:18px;font-weight:800;color:' + TENANT_CONFIG.backgroundColor + ';letter-spacing:0.05em;">' + TENANT_CONFIG.companyName + '</h1>' +
+        '<p style="margin:4px 0 0;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.15em;">' + TENANT_CONFIG.tagline + '</p>' +
       '</div>' +
-      '<div style="padding:24px;background:' + PORTAL_CONFIG.backgroundColor + ';">' +
-        '<p style="font-size:11px;color:' + PORTAL_CONFIG.textSecondary + ';text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">' + projectName + '</p>' +
-        '<h2 style="margin:0 0 16px;font-size:20px;font-weight:700;color:' + PORTAL_CONFIG.primaryColor + ';">' + heading + '</h2>' +
+      '<div style="padding:24px;background:' + TENANT_CONFIG.backgroundColor + ';">' +
+        '<p style="font-size:11px;color:' + TENANT_CONFIG.textSecondary + ';text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">' + projectName + '</p>' +
+        '<h2 style="margin:0 0 16px;font-size:20px;font-weight:700;color:' + TENANT_CONFIG.primaryColor + ';">' + heading + '</h2>' +
         bodyContent +
-        '<div style="margin-top:24px;padding-top:16px;border-top:1px solid ' + PORTAL_CONFIG.borderColor + ';">' +
-          '<a href="' + PORTAL_CONFIG.portalUrl + '" style="display:inline-block;background:' + PORTAL_CONFIG.primaryColor + ';color:' + PORTAL_CONFIG.backgroundColor + ';padding:10px 24px;text-decoration:none;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;border-radius:4px;">View in Portal</a>' +
+        '<div style="margin-top:24px;padding-top:16px;border-top:1px solid ' + TENANT_CONFIG.borderColor + ';">' +
+          '<a href="' + TENANT_CONFIG.portalUrl + '" style="display:inline-block;background:' + TENANT_CONFIG.primaryColor + ';color:' + TENANT_CONFIG.backgroundColor + ';padding:10px 24px;text-decoration:none;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;border-radius:4px;">View in Portal</a>' +
         '</div>' +
       '</div>' +
-      '<div style="padding:16px 24px;font-size:10px;color:#999;">Sent from ' + PORTAL_CONFIG.companyName + ' ' + PORTAL_CONFIG.tagline + '</div>' +
+      '<div style="padding:16px 24px;font-size:10px;color:#999;">Sent from ' + TENANT_CONFIG.companyName + ' ' + TENANT_CONFIG.tagline + '</div>' +
     '</div>';
   }
 
@@ -484,12 +604,12 @@
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.setTextColor(250, 249, 246);
-    doc.text(PORTAL_CONFIG.companyName, 14, 16);
+    doc.text(TENANT_CONFIG.companyName, 14, 16);
     // Subtitle
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(180, 180, 180);
-    doc.text(PORTAL_CONFIG.tagline.toUpperCase(), 14, 24);
+    doc.text(TENANT_CONFIG.tagline.toUpperCase(), 14, 24);
     // Project name right-aligned
     doc.setFontSize(10);
     doc.setTextColor(250, 249, 246);
@@ -624,7 +744,7 @@
       doc.setDrawColor.apply(doc, borderC); doc.setLineWidth(0.2);
       doc.line(ml, ph - 14, pw - mr, ph - 14);
       doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor.apply(doc, light);
-      doc.text(PORTAL_CONFIG.companyName + '  ·  ' + PORTAL_CONFIG.tagline, ml, ph - 9);
+      doc.text(TENANT_CONFIG.companyName + '  ·  ' + TENANT_CONFIG.tagline, ml, ph - 9);
       doc.text('Page ' + i + ' of ' + pages, pw - mr, ph - 9, { align: 'right' });
     }
     var safeName = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
@@ -733,7 +853,7 @@
       doc.setDrawColor.apply(doc, borderC); doc.setLineWidth(0.2);
       doc.line(ml, ph - 14, pw - mr, ph - 14);
       doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor.apply(doc, light);
-      doc.text(PORTAL_CONFIG.companyName + '  ·  ' + PORTAL_CONFIG.tagline, ml, ph - 9);
+      doc.text(TENANT_CONFIG.companyName + '  ·  ' + TENANT_CONFIG.tagline, ml, ph - 9);
       doc.text('Page ' + i + ' of ' + pages, pw - mr, ph - 9, { align: 'right' });
     }
     var safeName = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
@@ -891,7 +1011,7 @@
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor.apply(doc, light);
-      doc.text(PORTAL_CONFIG.companyName + '  ·  ' + PORTAL_CONFIG.tagline, ml, fp);
+      doc.text(TENANT_CONFIG.companyName + '  ·  ' + TENANT_CONFIG.tagline, ml, fp);
       doc.text(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), pw - mr, fp, { align: 'right' });
 
       var safeName  = (project.name || 'Project').replace(/[^a-zA-Z0-9]/g, '_');
@@ -1022,7 +1142,7 @@
       doc.setDrawColor(229,227,222); doc.setLineWidth(0.2);
       doc.line(14, ph2 - 14, pw2 - 14, ph2 - 14);
       doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(180,180,180);
-      doc.text(PORTAL_CONFIG.companyName + '  ·  ' + PORTAL_CONFIG.tagline, 14, ph2 - 9);
+      doc.text(TENANT_CONFIG.companyName + '  ·  ' + TENANT_CONFIG.tagline, 14, ph2 - 9);
       doc.text('Page ' + i + ' of ' + pages, pw2 - 14, ph2 - 9, { align: 'right' });
     }
 
@@ -1035,12 +1155,12 @@
   // FIREBASE DATA OPERATIONS
   // ========================================
 
-  // Reads the publicly-readable settings/portal doc to check if an admin has been created.
-  // Falls back to showing setup (true) on error so a fresh install still works.
+  // Reads the tenant doc to check if an admin has been created.
+  // Falls back to showing setup (false) on error so a fresh install still works.
   async function checkAdminInitialized() {
     try {
-      const portalDoc = await db.collection('settings').doc('portal').get();
-      return portalDoc.exists && portalDoc.data().adminInitialized === true;
+      var doc = await tenantRef.get();
+      return doc.exists && doc.data().adminInitialized === true;
     } catch (e) {
       console.error('Error checking admin status:', e);
       return false; // Default to NOT initialized (show setup) on error
@@ -1062,7 +1182,7 @@
       }
     }
     if (isNewAccount) {
-      await db.collection('users').doc(cred.user.uid).set({
+      await tenantRef.collection('users').doc(cred.user.uid).set({
         email: email,
         name: name,
         role: 'admin',
@@ -1070,25 +1190,24 @@
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }
-    // Mark portal as admin-initialized — this is the publicly-readable flag
-    // that lets unauthenticated users know to show login instead of setup.
-    await db.collection('settings').doc('portal').set({ adminInitialized: true }, { merge: true });
+    // Mark tenant as admin-initialized
+    await tenantRef.update({ adminInitialized: true });
     return cred.user;
   }
 
   async function getUserProfile(uid) {
-    const doc = await db.collection('users').doc(uid).get();
+    const doc = await tenantRef.collection('users').doc(uid).get();
     if (doc.exists) return { id: doc.id, ...doc.data() };
     return null;
   }
 
   async function loadAllProjects() {
-    const snap = await db.collection('projects').orderBy('createdAt', 'desc').get();
+    const snap = await tenantRef.collection('projects').orderBy('createdAt', 'desc').get();
     allProjects = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   }
 
   async function loadAllUsers() {
-    const snap = await db.collection('users').get();
+    const snap = await tenantRef.collection('users').get();
     allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   }
 
@@ -1101,7 +1220,7 @@
       description: p.desc
     }));
 
-    const docRef = await db.collection('projects').add({
+    const docRef = await tenantRef.collection('projects').add({
       name: data.name,
       location: data.location,
       clientId: data.clientId || '',
@@ -1116,14 +1235,14 @@
 
     // If client assigned, update their profile
     if (data.clientId) {
-      await db.collection('users').doc(data.clientId).update({ projectId: docRef.id });
+      await tenantRef.collection('users').doc(data.clientId).update({ projectId: docRef.id });
     }
 
     return docRef.id;
   }
 
   async function updateProject(projectId, data) {
-    await db.collection('projects').doc(projectId).update(data);
+    await tenantRef.collection('projects').doc(projectId).update(data);
   }
 
   // ========================================
@@ -1138,7 +1257,7 @@
       const records = await resp.json();
 
       const batch = db.batch();
-      const metaRef = db.collection('costCodeTemplates').doc('master_v1');
+      const metaRef = tenantRef.collection('costCodeTemplates').doc('master_v1');
       const codesRef = metaRef.collection('codes');
 
       batch.set(metaRef, {
@@ -1164,7 +1283,7 @@
   // Check if template exists; auto-upload if not
   async function ensureCostCodeTemplate() {
     try {
-      const doc = await db.collection('costCodeTemplates').doc('master_v1').get();
+      const doc = await tenantRef.collection('costCodeTemplates').doc('master_v1').get();
       if (!doc.exists) {
         console.log('[CostCode] Template not found — uploading now...');
         await uploadCostCodeTemplate();
@@ -1178,7 +1297,7 @@
   async function seedProjectBudget(projectId, options) {
     // options: { tier, project_type, contract_type, modules[], include_remodel_conditions }
     try {
-      const snap = await db.collection('costCodeTemplates')
+      const snap = await tenantRef.collection('costCodeTemplates')
         .doc('master_v1').collection('codes').get();
 
       if (snap.empty) {
@@ -1187,7 +1306,7 @@
       }
 
       const batch = db.batch();
-      const budgetRef = db.collection('projects').doc(projectId).collection('budgetItems');
+      const budgetRef = tenantRef.collection('projects').doc(projectId).collection('budgetItems');
       let count = 0;
 
       snap.forEach(function(doc) {
@@ -1249,7 +1368,7 @@
       });
 
       // Save template settings on project document
-      batch.update(db.collection('projects').doc(projectId), {
+      batch.update(tenantRef.collection('projects').doc(projectId), {
         budget_template_version:      'master_v1',
         budget_tier:                  options.tier,
         budget_project_type:          options.project_type,
@@ -1316,49 +1435,20 @@
   }
 
   async function createClientAccount(email, name) {
-    // Create client via secondary Firebase app (avoids logging out the admin)
-    let secondaryApp;
-    try {
-      secondaryApp = firebase.app('secondary');
-    } catch(e) {
-      secondaryApp = firebase.initializeApp(FIREBASE_CONFIG, 'secondary');
-    }
-    const secondaryAuth = secondaryApp.auth();
-
-    // Generate random temp password (client will set their own via welcome email)
-    const tempPassword = 'PM_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, tempPassword);
-    const newUid = cred.user.uid;
-
-    // Create Firestore profile
-    await db.collection('users').doc(newUid).set({
-      email: email,
-      name: name,
-      role: 'client',
-      projectId: '',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    // Sign out from secondary app
-    await secondaryAuth.signOut();
+    // Create client via Cloud Function (sets custom claims, creates Firestore profile)
+    var createTenantUser = firebase.functions().httpsCallable('createTenantUser');
+    var result = await createTenantUser({ email: email, name: name, role: 'client', tenantId: currentTenantId });
+    var newUid = result.data.uid;
 
     // Send branded welcome email via Cloud Function
-    // (generates real password reset link server-side + sends polished HTML email)
     try {
       var sendWelcomeEmail = firebase.functions().httpsCallable('sendWelcomeEmail');
-      await sendWelcomeEmail({
-        clientName: name,
-        clientEmail: email,
-        companyName: PORTAL_CONFIG.companyName,
-        accentColor: PORTAL_CONFIG.accentColor,
-        portalUrl: PORTAL_CONFIG.portalUrl || window.location.origin,
-        supportEmail: PORTAL_CONFIG.supportEmail
-      });
+      await sendWelcomeEmail({ clientName: name, clientEmail: email, tenantId: currentTenantId });
     } catch (welcomeErr) {
       // Non-fatal: account was created, but email failed. Fall back to generic Firebase email.
       console.warn('Welcome email failed, falling back to Firebase reset:', welcomeErr.message);
       await auth.sendPasswordResetEmail(email, {
-        url: PORTAL_CONFIG.portalUrl || window.location.origin
+        url: TENANT_CONFIG.portalUrl || window.location.origin
       });
     }
 
@@ -1366,27 +1456,10 @@
   }
 
   async function createEmployeeAccount(email, password, name, assignedProjects) {
-    let secondaryApp;
-    try {
-      secondaryApp = firebase.app('secondary');
-    } catch(e) {
-      secondaryApp = firebase.initializeApp(FIREBASE_CONFIG, 'secondary');
-    }
-    const secondaryAuth = secondaryApp.auth();
-
-    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
-    const newUid = cred.user.uid;
-
-    await db.collection('users').doc(newUid).set({
-      email: email,
-      name: name,
-      role: 'employee',
-      assignedProjects: assignedProjects || [],
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    await secondaryAuth.signOut();
-
+    // Create employee via Cloud Function (sets custom claims, creates Firestore profile)
+    var createTenantUser = firebase.functions().httpsCallable('createTenantUser');
+    var result = await createTenantUser({ email: email, name: name, role: 'employee', tenantId: currentTenantId });
+    var newUid = result.data.uid;
     return newUid;
   }
 
@@ -1400,7 +1473,7 @@
     try {
       // No orderBy — new schema uses sort_order (snake_case), old schema uses sortOrder (camelCase).
       // Firestore orderBy silently excludes docs missing the field, so we sort in JS instead.
-      const snap = await db.collection('projects').doc(projectId)
+      const snap = await tenantRef.collection('projects').doc(projectId)
         .collection('budgetItems').get();
       firestoreBudgetItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       // Sort: new schema by sort_order, old schema by sortOrder
@@ -1420,7 +1493,7 @@
 
   async function addBudgetItem(projectId, data) {
     const maxSort = firestoreBudgetItems.reduce((m, i) => Math.max(m, i.sortOrder || 0), 0);
-    await db.collection('projects').doc(projectId).collection('budgetItems').add({
+    await tenantRef.collection('projects').doc(projectId).collection('budgetItems').add({
       costCode: data.costCode,
       description: data.description || '',
       vendor: data.vendor || '',
@@ -1435,7 +1508,7 @@
   }
 
   async function updateBudgetItem(projectId, itemId, data) {
-    await db.collection('projects').doc(projectId).collection('budgetItems').doc(itemId).update({
+    await tenantRef.collection('projects').doc(projectId).collection('budgetItems').doc(itemId).update({
       costCode: data.costCode,
       description: data.description || '',
       vendor: data.vendor || '',
@@ -1448,7 +1521,7 @@
   }
 
   async function deleteBudgetItem(projectId, itemId) {
-    await db.collection('projects').doc(projectId).collection('budgetItems').doc(itemId).delete();
+    await tenantRef.collection('projects').doc(projectId).collection('budgetItems').doc(itemId).delete();
   }
 
   async function importBudgetFromSheets(projectId) {
@@ -1513,7 +1586,7 @@
     // Batch write to Firestore
     const batch = db.batch();
     items.forEach(item => {
-      const ref = db.collection('projects').doc(projectId).collection('budgetItems').doc();
+      const ref = tenantRef.collection('projects').doc(projectId).collection('budgetItems').doc();
       batch.set(ref, item);
     });
     await batch.commit();
@@ -1562,7 +1635,7 @@
     photosLoading = true;
     render();
     try {
-      const snap = await db.collection('projects').doc(projectId)
+      const snap = await tenantRef.collection('projects').doc(projectId)
         .collection('photos').orderBy('uploadedAt', 'desc').get();
       projectPhotos = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
     } catch (err) {
@@ -1585,10 +1658,10 @@
 
   async function uploadPhoto(projectId, file, caption, phase) {
     file = await convertHeicIfNeeded(file);
-    var storageRef = storage.ref().child('projects/' + projectId + '/photos/' + Date.now() + '_' + file.name);
+    var storageRef = storage.ref().child('tenants/' + currentTenantId + '/projects/' + projectId + '/photos/' + Date.now() + '_' + file.name);
     var snapshot = await storageRef.put(file);
     var url = await snapshot.ref.getDownloadURL();
-    await db.collection('projects').doc(projectId).collection('photos').add({
+    await tenantRef.collection('projects').doc(projectId).collection('photos').add({
       filename: file.name,
       url: url,
       caption: caption || file.name,
@@ -1599,13 +1672,13 @@
   }
 
   async function deletePhoto(projectId, photoId) {
-    var photoDoc = await db.collection('projects').doc(projectId).collection('photos').doc(photoId).get();
+    var photoDoc = await tenantRef.collection('projects').doc(projectId).collection('photos').doc(photoId).get();
     if (photoDoc.exists) {
       var data = photoDoc.data();
       if (data.url) {
         try { await storage.refFromURL(data.url).delete(); } catch(e) { console.warn('Could not delete file from storage:', e); }
       }
-      await db.collection('projects').doc(projectId).collection('photos').doc(photoId).delete();
+      await tenantRef.collection('projects').doc(projectId).collection('photos').doc(photoId).delete();
     }
   }
 
@@ -1617,7 +1690,7 @@
     invoicesLoading = true;
     render();
     try {
-      var snap = await db.collection('projects').doc(projectId)
+      var snap = await tenantRef.collection('projects').doc(projectId)
         .collection('invoices').orderBy('createdAt', 'desc').get();
       currentInvoices = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
     } catch (err) {
@@ -1629,7 +1702,7 @@
   }
 
   async function addInvoice(projectId, data) {
-    await db.collection('projects').doc(projectId).collection('invoices').add({
+    await tenantRef.collection('projects').doc(projectId).collection('invoices').add({
       title: data.title || '',
       amount: Number(data.amount) || 0,
       status: data.status || 'pending',
@@ -1641,13 +1714,13 @@
   }
 
   async function updateInvoiceStatus(projectId, invoiceId, newStatus) {
-    await db.collection('projects').doc(projectId).collection('invoices').doc(invoiceId).update({
+    await tenantRef.collection('projects').doc(projectId).collection('invoices').doc(invoiceId).update({
       status: newStatus
     });
   }
 
   async function deleteInvoice(projectId, invoiceId) {
-    await db.collection('projects').doc(projectId).collection('invoices').doc(invoiceId).delete();
+    await tenantRef.collection('projects').doc(projectId).collection('invoices').doc(invoiceId).delete();
   }
 
   function getInvoicesSummary() {
@@ -1697,7 +1770,7 @@
     messagesLoading = true;
     render();
     try {
-      var snap = await db.collection('projects').doc(projectId)
+      var snap = await tenantRef.collection('projects').doc(projectId)
         .collection('messages').orderBy('createdAt', 'asc').get();
       currentMessages = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
     } catch (err) {
@@ -1724,7 +1797,7 @@
     if (msgData.photos && msgData.photos.length > 0) {
       for (var pi = 0; pi < msgData.photos.length; pi++) {
         var pFile = await convertHeicIfNeeded(msgData.photos[pi]);
-        var pRef = storage.ref().child('projects/' + projectId + '/updates/' + Date.now() + '_' + pFile.name);
+        var pRef = storage.ref().child('tenants/' + currentTenantId + '/projects/' + projectId + '/updates/' + Date.now() + '_' + pFile.name);
         var pSnap = await pRef.put(pFile);
         var pUrl = await pSnap.ref.getDownloadURL();
         photoUrls.push(pUrl);
@@ -1736,7 +1809,7 @@
     if (msgData.files && msgData.files.length > 0) {
       for (var fi = 0; fi < msgData.files.length; fi++) {
         var aFile = msgData.files[fi];
-        var aRef = storage.ref().child('projects/' + projectId + '/update-files/' + Date.now() + '_' + aFile.name);
+        var aRef = storage.ref().child('tenants/' + currentTenantId + '/projects/' + projectId + '/update-files/' + Date.now() + '_' + aFile.name);
         var aSnap = await aRef.put(aFile);
         var aUrl = await aSnap.ref.getDownloadURL();
         fileObjs.push({ name: aFile.name, url: aUrl, type: aFile.type || '' });
@@ -1755,7 +1828,7 @@
     if (msgData.updateType && msgData.updateType !== 'General') doc.updateType = msgData.updateType;
     if (msgData.title && msgData.title.trim()) doc.title = msgData.title.trim();
 
-    await db.collection('projects').doc(projectId).collection('messages').add(doc);
+    await tenantRef.collection('projects').doc(projectId).collection('messages').add(doc);
   }
 
   function renderUpdatesTab(project, viewerRole) {
@@ -1994,7 +2067,7 @@
     documentsLoading = true;
     render();
     try {
-      var snap = await db.collection('projects').doc(projectId)
+      var snap = await tenantRef.collection('projects').doc(projectId)
         .collection('documents').orderBy('uploadedAt', 'desc').get();
       projectDocuments = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
     } catch (err) {
@@ -2006,7 +2079,7 @@
   }
 
   async function uploadDocument(projectId, file, category) {
-    var storageRef = storage.ref().child('projects/' + projectId + '/documents/' + Date.now() + '_' + file.name);
+    var storageRef = storage.ref().child('tenants/' + currentTenantId + '/projects/' + projectId + '/documents/' + Date.now() + '_' + file.name);
     var snapshot = await storageRef.put(file);
     var url = await snapshot.ref.getDownloadURL();
     var ext = (file.name.split('.').pop() || '').toLowerCase();
@@ -2016,7 +2089,7 @@
     else if (['doc','docx'].indexOf(ext) >= 0) type = 'doc';
     else if (['xls','xlsx'].indexOf(ext) >= 0) type = 'spreadsheet';
 
-    await db.collection('projects').doc(projectId).collection('documents').add({
+    await tenantRef.collection('projects').doc(projectId).collection('documents').add({
       filename: file.name,
       url: url,
       type: type,
@@ -2027,13 +2100,13 @@
   }
 
   async function deleteDocument(projectId, docId) {
-    var docRef = await db.collection('projects').doc(projectId).collection('documents').doc(docId).get();
+    var docRef = await tenantRef.collection('projects').doc(projectId).collection('documents').doc(docId).get();
     if (docRef.exists) {
       var data = docRef.data();
       if (data.url) {
         try { await storage.refFromURL(data.url).delete(); } catch(e) { console.warn('Could not delete file from storage:', e); }
       }
-      await db.collection('projects').doc(projectId).collection('documents').doc(docId).delete();
+      await tenantRef.collection('projects').doc(projectId).collection('documents').doc(docId).delete();
     }
   }
 
@@ -2045,7 +2118,7 @@
     selectionsLoading = true;
     render();
     try {
-      var snap = await db.collection('projects').doc(projectId)
+      var snap = await tenantRef.collection('projects').doc(projectId)
         .collection('selections').orderBy('createdAt', 'desc').get();
       projectSelections = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
     } catch (err) {
@@ -2066,27 +2139,27 @@
       imageUrl: data.imageUrl || '',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
-    await db.collection('projects').doc(projectId).collection('selections').add(selData);
+    await tenantRef.collection('projects').doc(projectId).collection('selections').add(selData);
   }
 
   async function updateSelection(projectId, selId, data) {
-    await db.collection('projects').doc(projectId).collection('selections').doc(selId).update(data);
+    await tenantRef.collection('projects').doc(projectId).collection('selections').doc(selId).update(data);
   }
 
   async function deleteSelection(projectId, selId) {
-    var selDoc = await db.collection('projects').doc(projectId).collection('selections').doc(selId).get();
+    var selDoc = await tenantRef.collection('projects').doc(projectId).collection('selections').doc(selId).get();
     if (selDoc.exists) {
       var data = selDoc.data();
       if (data.imageUrl) {
         try { await storage.refFromURL(data.imageUrl).delete(); } catch(e) { console.warn('Could not delete file from storage:', e); }
       }
-      await db.collection('projects').doc(projectId).collection('selections').doc(selId).delete();
+      await tenantRef.collection('projects').doc(projectId).collection('selections').doc(selId).delete();
     }
   }
 
   async function uploadSelectionImage(projectId, file) {
     file = await convertHeicIfNeeded(file);
-    var storageRef = storage.ref().child('projects/' + projectId + '/selections/' + Date.now() + '_' + file.name);
+    var storageRef = storage.ref().child('tenants/' + currentTenantId + '/projects/' + projectId + '/selections/' + Date.now() + '_' + file.name);
     var snapshot = await storageRef.put(file);
     return await snapshot.ref.getDownloadURL();
   }
@@ -2099,7 +2172,7 @@
     changeOrdersLoading = true;
     render();
     try {
-      var snap = await db.collection('projects').doc(projectId)
+      var snap = await tenantRef.collection('projects').doc(projectId)
         .collection('changeOrders').orderBy('createdAt', 'desc').get();
       currentChangeOrders = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
     } catch (err) {
@@ -2111,7 +2184,7 @@
   }
 
   async function addChangeOrder(projectId, data) {
-    await db.collection('projects').doc(projectId).collection('changeOrders').add({
+    await tenantRef.collection('projects').doc(projectId).collection('changeOrders').add({
       title: data.title,
       description: data.description || '',
       costImpact: Number(data.costImpact) || 0,
@@ -2134,11 +2207,11 @@
       updateData.signedBy = (userProfile && userProfile.name) ? userProfile.name : '';
       updateData.signedAt = firebase.firestore.FieldValue.serverTimestamp();
     }
-    await db.collection('projects').doc(projectId).collection('changeOrders').doc(changeOrderId).update(updateData);
+    await tenantRef.collection('projects').doc(projectId).collection('changeOrders').doc(changeOrderId).update(updateData);
   }
 
   async function deleteChangeOrder(projectId, changeOrderId) {
-    await db.collection('projects').doc(projectId).collection('changeOrders').doc(changeOrderId).delete();
+    await tenantRef.collection('projects').doc(projectId).collection('changeOrders').doc(changeOrderId).delete();
   }
 
   function getChangeOrdersSummary() {
@@ -2507,8 +2580,8 @@
     return `
       <div class="setup-page">
         <div class="setup-container">
-          <div class="login-brand">${PORTAL_CONFIG.companyName}</div>
-          <div class="login-subtitle">${PORTAL_CONFIG.tagline}</div>
+          <div class="login-brand">${TENANT_CONFIG.companyName}</div>
+          <div class="login-subtitle">${TENANT_CONFIG.tagline}</div>
           <div class="setup-desc">
             Welcome! No admin account exists yet.<br>
             Create your admin account to get started.
@@ -2566,8 +2639,8 @@
     return `
       <div class="login-page">
         <div class="login-container">
-          <div class="login-brand">${PORTAL_CONFIG.companyName}</div>
-          <div class="login-subtitle">${PORTAL_CONFIG.tagline}</div>
+          <div class="login-brand">${TENANT_CONFIG.companyName}</div>
+          <div class="login-subtitle">${TENANT_CONFIG.tagline}</div>
           <form class="login-form" id="loginForm">
             <div class="form-group">
               <label for="loginEmail">Email</label>
@@ -2623,7 +2696,7 @@
     return `
       <div class="login-page">
         <div class="login-container">
-          <div class="login-brand">${PORTAL_CONFIG.companyName}</div>
+          <div class="login-brand">${TENANT_CONFIG.companyName}</div>
           <div class="login-subtitle">Password Reset</div>
           <form class="login-form" id="forgotForm">
             <div class="form-group">
@@ -2678,7 +2751,7 @@
     const project = allProjects.find(p => p.id === userProfile.projectId);
     return `
       <nav class="nav-bar">
-        <div class="nav-logo">${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
+        <div class="nav-logo">${TENANT_CONFIG.companyName}<span>${TENANT_CONFIG.tagline}</span></div>
         <div class="nav-links-wrap"><div class="nav-links">
           ${project ? `
             <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Home</button>
@@ -2708,15 +2781,15 @@
   }
 
   function renderClientFooter() {
-    const portalDomain = PORTAL_CONFIG.portalUrl.replace(/^https?:\/\//, '');
-    const phoneItem = PORTAL_CONFIG.supportPhone
-      ? `<div class="client-footer-dot"></div><div class="client-footer-item">${escapeHtml(PORTAL_CONFIG.supportPhone)}</div>`
+    const portalDomain = TENANT_CONFIG.portalUrl.replace(/^https?:\/\//, '');
+    const phoneItem = TENANT_CONFIG.supportPhone
+      ? `<div class="client-footer-dot"></div><div class="client-footer-item">${escapeHtml(TENANT_CONFIG.supportPhone)}</div>`
       : '';
     return `
       <footer class="client-footer">
-        <div class="client-footer-item">${escapeHtml(PORTAL_CONFIG.companyName)}</div>
+        <div class="client-footer-item">${escapeHtml(TENANT_CONFIG.companyName)}</div>
         <div class="client-footer-dot"></div>
-        <div class="client-footer-item"><a href="mailto:${escapeAttr(PORTAL_CONFIG.supportEmail)}">${escapeHtml(PORTAL_CONFIG.supportEmail)}</a></div>
+        <div class="client-footer-item"><a href="mailto:${escapeAttr(TENANT_CONFIG.supportEmail)}">${escapeHtml(TENANT_CONFIG.supportEmail)}</a></div>
         ${phoneItem}
         <div class="client-footer-dot"></div>
         <div class="client-footer-item" style="opacity:0.5;">Project Map — Powered by Dune</div>
@@ -3660,7 +3733,7 @@
   function renderAdminLayout() {
     return `
       <nav class="nav-bar">
-        <div class="nav-logo">${PORTAL_CONFIG.companyName}<span>Admin Portal</span></div>
+        <div class="nav-logo">${TENANT_CONFIG.companyName}<span>Admin Portal</span></div>
         <div class="nav-links">
           <button class="nav-link ${adminView === 'overview' || adminView === 'detail' ? 'active' : ''}" data-admin-nav="overview">Projects</button>
           <button class="nav-link ${adminView === 'clients' ? 'active' : ''}" data-admin-nav="clients">Clients</button>
@@ -3726,7 +3799,7 @@
     `;
 
     // ── QBO Connection Card ──
-    if (PORTAL_CONFIG.qboClientId) {
+    if (TENANT_CONFIG.qboClientId) {
       if (qboConnected) {
         dashboardHtml += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:20px;">';
         dashboardHtml += '<div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--font-nav);font-size:11px;font-weight:600;color:#1a7a1a;text-transform:uppercase;letter-spacing:0.08em;">&#10003; QuickBooks Connected</span></div>';
@@ -3869,7 +3942,7 @@
 
     const clientNav = `
       <nav class="nav-bar">
-        <div class="nav-logo">${PORTAL_CONFIG.companyName}<span>${PORTAL_CONFIG.tagline}</span></div>
+        <div class="nav-logo">${TENANT_CONFIG.companyName}<span>${TENANT_CONFIG.tagline}</span></div>
         <div class="nav-links">
           <button class="nav-link ${clientView === 'dashboard' ? 'active' : ''}" data-client-nav="dashboard">Home</button>
           <button class="nav-link ${clientView === 'finances' ? 'active' : ''}" data-client-nav="finances">Finances</button>
@@ -4353,7 +4426,7 @@
     if (item) Object.assign(item, update);
     budgetEditingLine = null;
     render();
-    await db.collection('projects').doc(projectId)
+    await tenantRef.collection('projects').doc(projectId)
       .collection('budgetItems').doc(itemId).update(update);
   }
 
@@ -4396,7 +4469,7 @@
       updated_at:         firebase.firestore.FieldValue.serverTimestamp()
     };
     budgetAddingToCategory = null;
-    var ref = await db.collection('projects').doc(projectId)
+    var ref = await tenantRef.collection('projects').doc(projectId)
       .collection('budgetItems').add(newItem);
     firestoreBudgetItems.push(Object.assign({ id: ref.id }, newItem));
     budgetCategoryOpen[catCode] = true; // keep category open
@@ -4409,7 +4482,7 @@
     if (!confirm('Delete \u201c' + (itemName||'this line') + '\u201d? This cannot be undone.')) return;
     firestoreBudgetItems = firestoreBudgetItems.filter(function(i){ return i.id !== itemId; });
     render();
-    await db.collection('projects').doc(projectId)
+    await tenantRef.collection('projects').doc(projectId)
       .collection('budgetItems').doc(itemId).delete();
     showToast('Line deleted.');
   }
@@ -4423,7 +4496,7 @@
     if (cachedTemplate || cachedTemplateLoading || cachedTemplateFailed) return;
     cachedTemplateLoading = true;
     try {
-      var snap = await db.collection('costCodeTemplates').doc('master_v1').collection('codes').get();
+      var snap = await tenantRef.collection('costCodeTemplates').doc('master_v1').collection('codes').get();
       cachedTemplate = [];
       snap.forEach(function(doc) { cachedTemplate.push(doc.data()); });
       console.log('[Restore] Template loaded: ' + cachedTemplate.length + ' codes');
@@ -4470,7 +4543,7 @@
     if (!missing.length) { showToast('Nothing to restore — all template lines are present.'); return; }
 
     var batch    = db.batch();
-    var budgetRef = db.collection('projects').doc(projectId).collection('budgetItems');
+    var budgetRef = tenantRef.collection('projects').doc(projectId).collection('budgetItems');
     var nowStamp  = firebase.firestore.FieldValue.serverTimestamp();
 
     missing.forEach(function(r) {
@@ -5765,7 +5838,7 @@
       try {
         var batch = db.batch();
         currentInvoices.forEach(function(inv) {
-          var ref = db.collection('projects').doc(adminSelectedProject).collection('invoices').doc(inv.id);
+          var ref = tenantRef.collection('projects').doc(adminSelectedProject).collection('invoices').doc(inv.id);
           batch.delete(ref);
         });
         await batch.commit();
@@ -6030,7 +6103,7 @@
   function renderEmployeeLayout() {
     return `
       <nav class="nav-bar">
-        <div class="nav-logo">${PORTAL_CONFIG.companyName}<span>Employee Portal</span></div>
+        <div class="nav-logo">${TENANT_CONFIG.companyName}<span>Employee Portal</span></div>
         <div class="nav-links">
           <button class="nav-link" id="logoutBtn">Logout</button>
         </div>
@@ -6710,10 +6783,10 @@
 
         // Update client projectId references
         if (oldClientId && oldClientId !== newClientId) {
-          await db.collection('users').doc(oldClientId).update({ projectId: '' });
+          await tenantRef.collection('users').doc(oldClientId).update({ projectId: '' });
         }
         if (newClientId && newClientId !== oldClientId) {
-          await db.collection('users').doc(newClientId).update({ projectId: adminSelectedProject });
+          await tenantRef.collection('users').doc(newClientId).update({ projectId: adminSelectedProject });
         }
 
         await refreshAdminData();
@@ -6897,10 +6970,10 @@
         if (!confirm('Delete client "' + name + '"? This will remove their account and portal access.')) return;
         try {
           // Delete Firestore user doc
-          await db.collection('users').doc(uid).delete();
+          await tenantRef.collection('users').doc(uid).delete();
           // Delete Auth account via Cloud Function
-          var deleteClientFn = firebase.functions().httpsCallable('deleteClientAccount');
-          await deleteClientFn({ uid: uid });
+          var deleteClientAccount = firebase.functions().httpsCallable('deleteClientAccount');
+          await deleteClientAccount({ uid: uid, tenantId: currentTenantId });
           await loadAllUsers();
           showToast('Client deleted.');
           render();
@@ -6990,7 +7063,7 @@
         budgetSaveTimer = setTimeout(function() {
           var update = { updated_at: firebase.firestore.FieldValue.serverTimestamp() };
           update[field] = value;
-          db.collection('projects').doc(projectId)
+          tenantRef.collection('projects').doc(projectId)
             .collection('budgetItems').doc(itemId)
             .update(update)
             .catch(function(e){ console.error('[Budget] Save failed:', e); });
@@ -7005,7 +7078,7 @@
         var status = this.value;
         var item = firestoreBudgetItems.find(function(i){ return i.id === itemId; });
         if (item) item.status = status;
-        db.collection('projects').doc(projectId)
+        tenantRef.collection('projects').doc(projectId)
           .collection('budgetItems').doc(itemId)
           .update({ status: status, updated_at: firebase.firestore.FieldValue.serverTimestamp() })
           .catch(function(e){ console.error('[Budget] Status save failed:', e); });
@@ -7711,13 +7784,13 @@
 
       try {
         // Update Firestore user doc
-        await db.collection('users').doc(uid).update({
+        await tenantRef.collection('users').doc(uid).update({
           name: name,
           projectId: projectId || ''
         });
         // If project assigned, also update the project's clientId
         if (projectId) {
-          await db.collection('projects').doc(projectId).update({
+          await tenantRef.collection('projects').doc(projectId).update({
             clientId: uid
           });
         }
@@ -8078,8 +8151,8 @@
   // ========================================
 
   function getQboAuthUrl() {
-    var clientId = PORTAL_CONFIG.qboClientId || '';
-    var redirectUri = encodeURIComponent(PORTAL_CONFIG.portalUrl + '/qbo-callback.html');
+    var clientId = TENANT_CONFIG.qboClientId || '';
+    var redirectUri = encodeURIComponent(TENANT_CONFIG.portalUrl + '/qbo-callback.html');
     var scope = encodeURIComponent('com.intuit.quickbooks.accounting');
     var state = Math.random().toString(36).substring(2, 18);
     return 'https://appcenter.intuit.com/connect/oauth2' +
@@ -8091,7 +8164,7 @@
   }
 
   async function qboRequest(type, extraData) {
-    var reqRef = await db.collection('_qboRequests').add(
+    var reqRef = await tenantRef.collection('_qboRequests').add(
       Object.assign({ type: type, status: 'pending', requestedAt: firebase.firestore.FieldValue.serverTimestamp() }, extraData || {})
     );
 
@@ -8114,13 +8187,7 @@
   }
 
   async function checkQboConnection() {
-    try {
-      var snap = await db.collection('settings').doc('qbo').get();
-      qboConnected = snap.exists;
-    } catch (e) {
-      console.warn('Could not check QBO connection:', e);
-      qboConnected = false;
-    }
+    return TENANT_CONFIG.qboConnected === true;
   }
 
   async function loadQboCustomers() {
@@ -8182,10 +8249,18 @@
 
   // Preserve existing session — Firebase handles auth state automatically
 
-  auth.onAuthStateChanged(async (user) => {
+  auth.onAuthStateChanged(async function(user) {
     console.log('Auth state:', user ? user.email : 'no user');
     if (user) {
       currentUser = user;
+
+      // Initialize tenant FIRST
+      var tenantOk = await initTenant();
+      if (!tenantOk) {
+        console.error('Failed to initialize tenant');
+        auth.signOut();
+        return;
+      }
 
       // Get user profile from Firestore
       try {
@@ -8208,8 +8283,8 @@
           await refreshAdminData();
           appState = 'admin';
           restoreFromHash(); // restore last-viewed project/tab from URL
-          // Auto-migrate existing admins: ensure settings/portal is marked initialized.
-          db.collection('settings').doc('portal').set({ adminInitialized: true }, { merge: true }).catch(() => {});
+          // Auto-migrate existing admins: ensure tenant doc is marked initialized.
+          tenantRef.update({ adminInitialized: true }).catch(() => {});
           // Auto-upload cost code template if not already in Firestore
           ensureCostCodeTemplate().catch(() => {});
         } else if (userProfile.role === 'employee') {
@@ -8242,9 +8317,11 @@
         await auth.signOut();
       }
     } else {
-      // No user signed in
+      // No user signed in — still need tenant for branding on login page
       currentUser = null;
       userProfile = null;
+
+      await initTenant();
 
       // Check if this is a fresh install (no admin created yet)
       const initialized = await checkAdminInitialized();
@@ -8319,13 +8396,13 @@
           try {
             this.textContent = "Deleting...";
             this.disabled = true;
-            var budgetSnap = await db.collection("projects").doc(projectId).collection("budgetItems").get();
+            var budgetSnap = await tenantRef.collection('projects').doc(projectId).collection("budgetItems").get();
             if (budgetSnap.size > 0) {
               var batch = db.batch();
               budgetSnap.docs.forEach(function(doc) { batch.delete(doc.ref); });
               await batch.commit();
             }
-            await db.collection("projects").doc(projectId).delete();
+            await tenantRef.collection('projects').doc(projectId).delete();
             overlay.remove();
             location.reload();
           } catch(e) {
