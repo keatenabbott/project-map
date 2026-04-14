@@ -114,8 +114,7 @@
     if (appState === 'admin') {
       if (adminView === 'detail' && adminSelectedProject) {
         hash = '#project/' + adminSelectedProject + '/' + (adminDetailTab || 'details');
-      } else if (adminView === 'settings') {
-        hash = '#settings';
+  
       } else {
         hash = '#admin';
       }
@@ -150,8 +149,7 @@
       } else if (hash === 'admin') {
         adminView = 'overview';
         adminSelectedProject = null;
-      } else if (hash === 'settings') {
-        adminView = 'settings';
+
       }
     } else if (appState === 'client') {
       if (CLIENT_HASH_TAB[hash]) {
@@ -3667,7 +3665,6 @@
           <button class="nav-link ${adminView === 'overview' || adminView === 'detail' ? 'active' : ''}" data-admin-nav="overview">Projects</button>
           <button class="nav-link ${adminView === 'clients' ? 'active' : ''}" data-admin-nav="clients">Clients</button>
           <button class="nav-link ${adminView === 'team' ? 'active' : ''}" data-admin-nav="team">Team</button>
-          <button class="nav-link ${adminView === 'settings' ? 'active' : ''}" data-admin-nav="settings">Settings</button>
           <button class="nav-link" id="logoutBtn">Logout</button>
         </div>
       </nav>
@@ -3676,7 +3673,7 @@
         ${adminView === 'detail' ? (adminPreviewClientView ? renderAdminClientPreview() : renderAdminDetail()) : ''}
         ${adminView === 'clients' ? renderAdminClients() : ''}
         ${adminView === 'team' ? renderAdminTeam() : ''}
-        ${adminView === 'settings' ? renderAdminSettings() : ''}
+
       </main>
       <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Project Map — Powered by Dune</div></footer>
       ${showModal === 'addClient' ? renderAddClientModal() : ''}
@@ -3727,6 +3724,24 @@
         </div>
       </div>
     `;
+
+    // ── QBO Connection Card ──
+    if (PORTAL_CONFIG.qboClientId) {
+      if (qboConnected) {
+        dashboardHtml += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:20px;">';
+        dashboardHtml += '<div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--font-nav);font-size:11px;font-weight:600;color:#1a7a1a;text-transform:uppercase;letter-spacing:0.08em;">&#10003; QuickBooks Connected</span></div>';
+        dashboardHtml += '<button class="btn btn-secondary btn-small" id="disconnectQboBtn" style="font-size:9px;padding:4px 10px;color:var(--text-tertiary);">Disconnect</button>';
+        dashboardHtml += '</div>';
+      } else {
+        dashboardHtml += '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:20px;">';
+        dashboardHtml += '<div>';
+        dashboardHtml += '<div style="font-family:var(--font-nav);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);">QuickBooks</div>';
+        dashboardHtml += '<div style="font-family:var(--font-nav);font-size:11px;color:var(--text-tertiary);margin-top:2px;">Connect to sync invoices across all projects.</div>';
+        dashboardHtml += '</div>';
+        dashboardHtml += '<button class="btn btn-primary btn-small" id="connectQboBtn">Connect QuickBooks</button>';
+        dashboardHtml += '</div>';
+      }
+    }
 
     // ── Project summary table ──
     if (allProjects.length > 0) {
