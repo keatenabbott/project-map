@@ -30,7 +30,6 @@
 <script>
   // Use shared config
   firebase.initializeApp(FIREBASE_CONFIG);
-  document.getElementById('brandName').textContent = PORTAL_CONFIG.companyName || 'PROJECT MAP';
 
   (function() {
     var params = new URLSearchParams(window.location.search);
@@ -57,7 +56,19 @@
       return;
     }
 
-    firebase.auth().onAuthStateChanged(function(user) {
+    // Resolve tenant from URL (same logic as app.js)
+    function resolveTenantId() {
+      var hostname = window.location.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return new URLSearchParams(window.location.search).get('tenant');
+      }
+      if (hostname.endsWith('.buildprojectmap.com')) {
+        return hostname.split('.')[0];
+      }
+      return null; // custom domain — needs lookup
+    }
+
+    firebase.auth().onAuthStateChanged(async function(user) {
       if (!user) {
         spinnerEl.style.display = 'none';
         statusEl.innerHTML = '<span class="error">Not Logged In</span>';
@@ -66,8 +77,39 @@
       }
 
       var db = firebase.firestore();
+
+      // Resolve tenantId
+      var tenantId = resolveTenantId();
+      if (!tenantId) {
+        // Try custom domain lookup
+        try {
+          var domainDoc = await db.collection('domains').doc(window.location.hostname).get();
+          if (domainDoc.exists) tenantId = domainDoc.data().tenantId;
+        } catch (e) {}
+      }
+      if (!tenantId) {
+        // Fallback: read from user's custom claims
+        var tokenResult = await user.getIdTokenResult();
+        tenantId = tokenResult.claims.tenantId;
+      }
+      if (!tenantId) {
+        spinnerEl.style.display = 'none';
+        statusEl.innerHTML = '<span class="error">Error</span>';
+        messageEl.textContent = 'Could not determine your account. Please try again from the portal.';
+        return;
+      }
+
+      // Load tenant branding
+      try {
+        var tenantDoc = await db.collection('tenants').doc(tenantId).get();
+        if (tenantDoc.exists) {
+          var cfg = tenantDoc.data();
+          document.getElementById('brandName').textContent = cfg.companyName || 'PROJECT MAP';
+        }
+      } catch (e) {}
+
       var docId = 'auth_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-      var pendingRef = db.collection('_qboAuth').doc(docId);
+      var pendingRef = db.collection('tenants').doc(tenantId).collection('_qboAuth').doc(docId);
       pendingRef.set({
         code: code,
         state: state || '',
@@ -94,7 +136,7 @@
             statusEl.innerHTML = '<span class="success">QuickBooks Connected!</span>';
             messageEl.textContent = 'Redirecting back to the portal...';
             setTimeout(function() {
-              window.location.href = (PORTAL_CONFIG.portalUrl || window.location.origin) + '/?qbo=connected';
+              window.location.href = window.location.origin + '/?qbo=connected';
             }, 1500);
           } else if (data.status === 'error') {
             clearTimeout(timeoutId);

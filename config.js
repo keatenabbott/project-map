@@ -1,12 +1,11 @@
 // Firebase config for the shared multi-tenant project
 const FIREBASE_CONFIG = {
-  // These values will be filled in after the Firebase project is created
-  apiKey: "PLACEHOLDER",
+  apiKey: "AIzaSyDBSfV11Y0to8aD_SEEBiW9ED2R5xxzUrk",
   authDomain: "buildprojectmap.firebaseapp.com",
   projectId: "buildprojectmap",
   storageBucket: "buildprojectmap.firebasestorage.app",
-  messagingSenderId: "PLACEHOLDER",
-  appId: "PLACEHOLDER"
+  messagingSenderId: "1042848641004",
+  appId: "1:1042848641004:web:f0d924a7da30e9f9c71ac9"
 };
 
 // PORTAL_CONFIG is no longer used — branding comes from Firestore tenant doc

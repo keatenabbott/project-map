@@ -75,11 +75,20 @@
   // ── Tenant Resolution ──
   function resolveTenantFromUrl() {
     var hostname = window.location.hostname;
+    var params = new URLSearchParams(window.location.search);
 
-    // localhost dev: use ?tenant= query param
+    // ?tenant= query param works everywhere (dev, testing, fallback)
+    var tenantParam = params.get('tenant');
+    if (tenantParam) return tenantParam;
+
+    // localhost dev: require ?tenant= param (already checked above)
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      var params = new URLSearchParams(window.location.search);
-      return params.get('tenant') || null;
+      return null;
+    }
+
+    // Firebase Hosting default domain: require ?tenant= param
+    if (hostname.endsWith('.web.app') || hostname.endsWith('.firebaseapp.com')) {
+      return null;
     }
 
     // Subdomain: extract from *.buildprojectmap.com
@@ -2792,7 +2801,7 @@
         <div class="client-footer-item"><a href="mailto:${escapeAttr(TENANT_CONFIG.supportEmail)}">${escapeHtml(TENANT_CONFIG.supportEmail)}</a></div>
         ${phoneItem}
         <div class="client-footer-dot"></div>
-        <div class="client-footer-item" style="opacity:0.5;">Project Map — Powered by Dune</div>
+        <div class="client-footer-item" style="opacity:0.5;">Powered by Project Map</div>
       </footer>
     `;
   }
@@ -3748,7 +3757,7 @@
         ${adminView === 'team' ? renderAdminTeam() : ''}
 
       </main>
-      <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Project Map — Powered by Dune</div></footer>
+      <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Powered by Project Map</div></footer>
       ${showModal === 'addClient' ? renderAddClientModal() : ''}
       ${showModal === 'editClient' ? renderEditClientModal() : ''}
       ${showModal === 'addEmployee' ? renderAddEmployeeModal() : ''}
@@ -6111,7 +6120,7 @@
       <main class="main-content">
         ${employeeView === 'overview' ? renderEmployeeOverview() : renderEmployeeDetail()}
       </main>
-      <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Project Map — Powered by Dune</div></footer>
+      <footer class="client-footer"><div class="client-footer-item" style="opacity:0.4;">Powered by Project Map</div></footer>
       ${lightboxPhoto ? '<div class="photo-lightbox" id="photoLightbox"><img src="' + escapeAttr(lightboxPhoto.url) + '" alt="' + escapeAttr(lightboxPhoto.caption) + '"><div class="photo-lightbox-caption">' + escapeHtml(lightboxPhoto.caption) + '</div></div>' : ''}
     `;
   }
